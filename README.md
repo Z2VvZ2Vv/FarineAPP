@@ -1,2 +1,3 @@
-# FarineAPP
-FarineAPP is a local feed mixing management app built for agricultural use. Running on a Raspberry Pi, it lets you create and manage recipes (corn, alfalfa, minerals...), read real-time weight from an Flintec FT-111 scale, and control the mixing process via a local web interface.
+# 🌾 FarineAPP – Feed Mixing Management System
+
+FarineAPP is a robust, offline-capable application designed for farmers and agricultural technicians to manage livestock feed mixing operations directly from a Raspberry Pi. It integrates seamlessly with the Flintec FT-111 weighing indicator and provides a lightweight web interface to track and control rations in real time — no cloud required.
