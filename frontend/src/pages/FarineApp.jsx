@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit3, Trash2, Home, Menu, X, AlertCircle, CheckCircle, AlignCenter } from 'lucide-react';
-import API_URL from "./config";
+import { Plus, Edit3, Trash2, Home, AlertCircle, CheckCircle } from 'lucide-react';
+import API_URL from "../config";
 
 const FarineApp = () => {
   //change this for production
@@ -583,7 +583,7 @@ const FarineApp = () => {
         {/* Sidebar */}
         <div style={styles.sidebar}>
           <div style={styles.logo}>
-            <h1>🌾FarineAPP</h1>
+            <h1>🔧FarineAPP</h1>
           </div>
 
           <nav>
@@ -608,7 +608,7 @@ const FarineApp = () => {
         <div style={styles.mainContent}>
           {/* Header */}
           <div style={styles.logoMobile}>
-            <h1>🌾FarineAPP</h1>
+            <h1>🔧 FarineAPP</h1>
           </div>
           <div>
             <h1 style={styles.title}>Gérer les rations</h1>

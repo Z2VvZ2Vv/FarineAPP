@@ -1,4 +1,4 @@
-import FarineApp from './FarineApp'
+import FarineApp from './pages/FarineApp'
 
 function App() {
   return <FarineApp />

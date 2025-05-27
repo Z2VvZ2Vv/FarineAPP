@@ -1,10 +1,19 @@
 {
   "expo": {
-    "name": "app",
+    "name": "FarineAPP",
     "slug": "app",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "orientation": "landscape",
+    "statusBarHidden": true,
+    "androidStatusBar": {
+      "hidden": true,
+      "translucent": true,
+      "backgroundColor": "transparent"
+    },
+    "androidNavigationBar": {
+      "visible": false
+    },
+    "icon": "",
     "scheme": "app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -31,7 +40,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "transparent"
         }
       ]
     ],
