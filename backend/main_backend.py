@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 from datetime import datetime, timezone
 from fastapi.middleware.cors import CORSMiddleware
+import random
 
 app = FastAPI()
 RATIONS_DIR = Path("rations")
@@ -16,6 +17,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Simulated variable
+weight = {"value": 0.0}
+
+# Simulated motor state
+motor_state = {
+    "corn": False,
+    "alfalfa": False
+}
+
+# Simulated mix status + recipe if mix
+mix_status = {
+    "in_progress": False,
+    "final_weight": 0.0,
+    "recipe": None
+}
+
+# A l'intialisation on check si les moteurs sont en marche
 
 # --- RECIPES ---
 
@@ -149,15 +168,61 @@ async def stop_mix():
 async def get_mix_status():
     pass
 
+# --- MOTORS MANUAL START/STOP ---
+
+@app.post("/api/motor/corn/toggle")
+async def toggle_corn_motor():
+    motor_state["corn"] = not motor_state["corn"]
+    return {
+        "message": f"Corn motor {'started' if motor_state['corn'] else 'stopped'}."
+    }
+@app.post("/api/motor/alfalfa/toggle")
+async def toggle_alfalfa_motor():
+    motor_state["alfalfa"] = not motor_state["alfalfa"]
+    return {
+        "message": f"Alfalfa motor {'started' if motor_state['alfalfa'] else 'stopped'}."
+    }
+
+@app.post("/api/motor/all/start")
+async def stop_all_motors():
+    motor_state["corn"] = True
+    motor_state["alfalfa"] = True
+    return {"message": "All motors started."}
+
+@app.post("/api/motor/all/stop")
+async def stop_all_motors():
+    motor_state["corn"] = False
+    motor_state["alfalfa"] = False
+    return {"message": "All motors stopped."}
+
+# --- MOTORS STATUS ---
+
+@app.get("/api/motor/status")
+async def get_motor_status():
+    return {
+        "corn": motor_state["corn"],
+        "alfalfa": motor_state["alfalfa"]
+    }
 
 # --- LIVE WEIGHT FROM FT-111 ---
 
 @app.get("/api/weight")
 async def get_live_weight():
-    pass
+    # Simulation of live weight reading
+    increment = random.uniform(0.0, 1.0)
+    weight["value"] += increment
+
+    if weight["value"] > 2000:
+        weight["value"] = 2000.0
+
+    return {
+        "value": round(weight["value"], 1),
+        "unit": "kg",
+        "stable": random.choices([True, False], weights=[0.8, 0.2])[0]
+    }
 
 
-# --- MIX LOGS ---
+# --- LOGS ---
 
 @app.get("/api/logs")
 async def list_logs():

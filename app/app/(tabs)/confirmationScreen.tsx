@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,53 +11,28 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Recipe } from '../../components/Recipe';
-import ConfirmationScreen from './confirmationScreen';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
 
-interface WeightSelectionProps {
+interface ConfirmationScreenProps {
   recipe: Recipe;
+  selectedWeight: number;
   onBack: () => void;
-  onContinue: (selectedWeight: number) => void;
+  onConfirm: () => void;
 }
 
-export default function WeightSelectionScreen({ 
+export default function ConfirmationScreen({ 
   recipe, 
+  selectedWeight,
   onBack, 
-  onContinue 
-}: WeightSelectionProps): React.ReactElement {
-  const [selectedWeight, setSelectedWeight] = useState<number | null>(null);
-  const [showConfirmation, setShowConfirmation] = useState<boolean>(false);
+  onConfirm 
+}: ConfirmationScreenProps): React.ReactElement {
 
-  // Options de poids disponibles
-  const weightOptions = [200, 400, 600, 800];
-
-  // Fonction pour formater la description des ingrédients
   const formatIngredients = (ingredients: Recipe['ingredients']): string => {
     return ingredients
       .map(ingredient => `${ingredient.name} (${ingredient.percentage}%)`)
       .join(', ');
-  };
-
-  const handleWeightPress = (weight: number): void => {
-    setSelectedWeight(weight);
-  };
-
-  const handleContinuePress = (): void => {
-    if (selectedWeight) {
-      setShowConfirmation(true); 
-    }
-  };
-
-  const handleConfirmationBack = (): void => {
-    setShowConfirmation(false);
-  };
-
-  const handleConfirmationConfirm = (): void => {
-    if (selectedWeight) {
-      onContinue(selectedWeight);
-    }
   };
 
   const isWeb = Platform.OS === 'web';
@@ -71,17 +46,6 @@ export default function WeightSelectionScreen({
   const getTextStyle = (...styles: (TextStyle | false | undefined)[]): TextStyle[] => {
     return styles.filter(Boolean) as TextStyle[];
   };
-
-  if (showConfirmation && selectedWeight) {
-    return (
-      <ConfirmationScreen
-        recipe={recipe}
-        selectedWeight={selectedWeight}
-        onBack={handleConfirmationBack}
-        onConfirm={handleConfirmationConfirm}
-      />
-    );
-  }
 
   return (
     <View style={getViewStyle(styles.fullScreenContainer, isWeb && styles.webContainer)}>
@@ -100,7 +64,7 @@ export default function WeightSelectionScreen({
         {/* Header */}
         <View style={styles.header}>
           <Text style={getTextStyle(styles.title, isWeb && styles.webTitle)}>🌾FarineAPP</Text>
-          <Text style={getTextStyle(styles.subtitle, isWeb && styles.webSubtitle)}>Sélectionnez le poids</Text>
+          <Text style={getTextStyle(styles.subtitle, isWeb && styles.webSubtitle)}>Confirmer la ration</Text>
         </View>
 
         {/* Main Content */}
@@ -122,45 +86,50 @@ export default function WeightSelectionScreen({
             </View>
           </View>
 
-          {/* Right side - Weight Selection */}
-          <View style={getViewStyle(styles.weightSelectionSection, isWeb && styles.webWeightSelectionSection)}>
-            <View style={getViewStyle(styles.weightGrid, isWeb && styles.webWeightGrid)}>
-              {weightOptions.map((weight) => (
-                <TouchableOpacity
-                  key={weight}
-                  style={getViewStyle(
-                    styles.weightButton,
-                    isWeb && styles.webWeightButton,
-                    selectedWeight === weight && styles.selectedWeightButton,
-                    selectedWeight === weight && isWeb && styles.webSelectedWeightButton
-                  )}
-                  onPress={() => handleWeightPress(weight)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={getTextStyle(
-                    styles.weightButtonText,
-                    isWeb && styles.webWeightButtonText,
-                    selectedWeight === weight && styles.selectedWeightButtonText
-                  )}>
-                    {weight} kg
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Right side - Confirmation */}
+          <View style={getViewStyle(styles.confirmationSection, isWeb && styles.webConfirmationSection)}>
+            {/* Question Icon */}
+            <View style={getViewStyle(styles.questionIconContainer, isWeb && styles.webQuestionIconContainer)}>
+              <Text style={getTextStyle(styles.questionIcon, isWeb && styles.webQuestionIcon)}>❓</Text>
             </View>
 
-            {/* Continue Button */}
-            <TouchableOpacity
-              style={getViewStyle(
-                styles.continueButton,
-                isWeb && styles.webContinueButton,
-                !selectedWeight && styles.continueButtonDisabled
-              )}
-              onPress={handleContinuePress}
-              disabled={!selectedWeight}
-              activeOpacity={0.8}
-            >
-              <Text style={getTextStyle(styles.continueButtonText, isWeb && styles.webContinueButtonText)}>Continuer</Text>
-            </TouchableOpacity>
+            {/* Poids sélectionné */}
+            <View style={getViewStyle(styles.weightDisplay, isWeb && styles.webWeightDisplay)}>
+              <Text style={getTextStyle(styles.weightLabel, isWeb && styles.webWeightLabel)}>
+                Poids sélectionné:
+              </Text>
+              <Text style={getTextStyle(styles.weightValue, isWeb && styles.webWeightValue)}>
+                {selectedWeight} kg
+              </Text>
+            </View>
+
+            {/* Question de confirmation */}
+            <Text style={getTextStyle(styles.confirmationText, isWeb && styles.webConfirmationText)}>
+              Voulez-vous confirmer cette ration ?
+            </Text>
+
+            {/* Boutons */}
+            <View style={getViewStyle(styles.buttonContainer, isWeb && styles.webButtonContainer)}>
+              <TouchableOpacity
+                style={getViewStyle(styles.secondaryButton, isWeb && styles.webSecondaryButton)}
+                onPress={onBack}
+                activeOpacity={0.8}
+              >
+                <Text style={getTextStyle(styles.buttonText, styles.secondaryButtonText, isWeb && styles.webButtonText)}>
+                  Retour
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={getViewStyle(styles.primaryButton, isWeb && styles.webPrimaryButton)}
+                onPress={onConfirm}
+                activeOpacity={0.8}
+              >
+                <Text style={getTextStyle(styles.buttonText, styles.primaryButtonText, isWeb && styles.webButtonText)}>
+                  Oui, confirmer
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -209,7 +178,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: '#60A5FA',
     fontWeight: 'bold',
-    top:-7,
+    top: -7,
   } as TextStyle,
   
   // Container pour tout le contenu
@@ -300,27 +269,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   } as TextStyle,
   
-  // Section sélection poids (droite)
-  weightSelectionSection: {
+  // Section confirmation (droite)
+  confirmationSection: {
     flex: 1,
     height: height * 0.5,
     justifyContent: 'center',
+    alignItems: 'center',
   } as ViewStyle,
   
-  weightGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 32,
-    justifyContent: 'center',
-  } as ViewStyle,
-  
-  weightButton: {
+  questionIconContainer: {
     backgroundColor: '#374151',
+    padding: 20,
+    borderRadius: 50,
+    marginBottom: 5,
+  } as ViewStyle,
+  
+  questionIcon: {
+    fontSize: Math.min(40, height * 0.08),
+    color: '#60A5FA',
+  } as TextStyle,
+  
+  weightDisplay: {
+    alignItems: 'center',
+    marginBottom: 5,
+  } as ViewStyle,
+  
+  weightLabel: {
+    fontSize: Math.min(14, height * 0.03),
+    color: '#9CA3AF',
+    marginBottom: 12,
+  } as TextStyle,
+  
+  weightValue: {
+    fontSize: Math.min(36, height * 0.08),
+    fontWeight: '700',
+    color: '#60A5FA',
+  } as TextStyle,
+  
+  confirmationText: {
+    fontSize: Math.min(18, height * 0.04),
+    color: '#D1D5DB',
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  } as TextStyle,
+  
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+  } as ViewStyle,
+  
+  secondaryButton: {
+    backgroundColor: '#4B5563',
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
-    minWidth: '40%',
+    flex: 1,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -332,29 +337,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   } as ViewStyle,
   
-  selectedWeightButton: {
-    backgroundColor: '#2563EB',
-    transform: [{ scale: 1.05 }],
-  } as ViewStyle,
-  
-  weightButtonText: {
-    color: '#FFFFFF',
-    fontSize: Math.min(20, height * 0.045),
-    fontWeight: '500',
-  } as TextStyle,
-  
-  selectedWeightButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  } as TextStyle,
-  
-  continueButton: {
+  primaryButton: {
     backgroundColor: '#2563EB',
     paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 12,
+    flex: 1,
     alignItems: 'center',
-    width: '100%',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -365,15 +354,17 @@ const styles = StyleSheet.create({
     elevation: 8,
   } as ViewStyle,
   
-  continueButtonDisabled: {
-    backgroundColor: '#475569',
-    opacity: 0.6,
-  } as ViewStyle,
-  
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontSize: Math.min(20, height * 0.045),
+  buttonText: {
+    fontSize: Math.min(18, height * 0.04),
     fontWeight: '600',
+  } as TextStyle,
+  
+  secondaryButtonText: {
+    color: '#E5E7EB',
+  } as TextStyle,
+  
+  primaryButtonText: {
+    color: '#FFFFFF',
   } as TextStyle,
 
   // === STYLES WEB ===
@@ -394,7 +385,7 @@ const styles = StyleSheet.create({
   
   webBackIcon: {
     fontSize: 28,
-    top:-4,
+    top: -4,
     fontWeight: 'bold',
   } as TextStyle,
   
@@ -449,38 +440,57 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   } as TextStyle,
   
-  webWeightSelectionSection: {
+  webConfirmationSection: {
     minHeight: 400,
     maxWidth: 500,
   } as ViewStyle,
   
-  webWeightGrid: {
-    gap: 20,
+  webQuestionIconContainer: {
+    padding: 28,
+    borderRadius: 60,
     marginBottom: 40,
   } as ViewStyle,
   
-  webWeightButton: {
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    minWidth: 140,
-  } as ViewStyle,
-  
-  webSelectedWeightButton: {
-    // Pas de styles hover spécifiques pour React Native
-  } as ViewStyle,
-  
-  webWeightButtonText: {
-    fontSize: 22,
+  webQuestionIcon: {
+    fontSize: 56,
   } as TextStyle,
   
-  webContinueButton: {
+  webWeightDisplay: {
+    marginBottom: 32,
+  } as ViewStyle,
+  
+  webWeightLabel: {
+    fontSize: 16,
+    marginBottom: 12,
+  } as TextStyle,
+  
+  webWeightValue: {
+    fontSize: 48,
+  } as TextStyle,
+  
+  webConfirmationText: {
+    fontSize: 20,
+    marginBottom: 40,
+    paddingHorizontal: 0,
+  } as TextStyle,
+  
+  webButtonContainer: {
+    gap: 20,
+  } as ViewStyle,
+  
+  webSecondaryButton: {
     paddingVertical: 18,
     paddingHorizontal: 32,
     borderRadius: 16,
   } as ViewStyle,
   
-  webContinueButtonText: {
-    fontSize: 22,
+  webPrimaryButton: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+  } as ViewStyle,
+  
+  webButtonText: {
+    fontSize: 20,
   } as TextStyle,
 });

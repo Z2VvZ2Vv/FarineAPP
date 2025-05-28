@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Recipe } from '../../components/Recipe';
+import ManualPage from './manualPage';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
@@ -27,14 +28,14 @@ export default function MainApp(): React.ReactElement {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'weight'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'weight' | 'manual'>('home');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   // Fonction pour récupérer les recettes depuis l'API
   const fetchRecipes = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiUrl}/api/recipes/`);
+      const response = await fetch(`${apiUrl}/api/recipes`);
       if (!response.ok) {
         throw new Error('Erreur lors du chargement des recettes');
       }
@@ -64,6 +65,10 @@ export default function MainApp(): React.ReactElement {
   const handleWeightContinue = (selectedWeight: number): void => {
     console.log(`Poids sélectionné: ${selectedWeight}kg pour la recette: ${selectedRecipe?.name}`);
     // Ici vous pouvez naviguer vers la prochaine étape
+  };
+
+  const handleManualPress = (): void => {
+    setCurrentScreen('manual');
   };
 
   const handleSettingsPress = async (): Promise<void> => {
@@ -120,6 +125,12 @@ export default function MainApp(): React.ReactElement {
       .join('\n');
   };
 
+  if (currentScreen === 'manual') {
+    return (
+      <ManualPage onBack={() => setCurrentScreen('home')} />
+    );
+  }
+
   // Si on est sur l'écran de sélection du poids
   if (currentScreen === 'weight' && selectedRecipe) {
     return (
@@ -136,6 +147,16 @@ export default function MainApp(): React.ReactElement {
     return (
       <View style={styles.fullScreenContainer}>
         <StatusBar hidden={true} />
+
+        {/* Bouton Manuel en haut à gauche */}
+        <TouchableOpacity
+          style={styles.manualButton}
+          onPress={handleManualPress}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.manualIcon}>📖</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.reloadButton}
           onPress={handleReloadPress}
@@ -143,6 +164,7 @@ export default function MainApp(): React.ReactElement {
         >
           <Text style={styles.reloadIcon}>🔄</Text>
         </TouchableOpacity>
+
         <View style={styles.contentContainer}>
           <Text style={[styles.subtitle, { color: '#FFFFFF' }]}>
             Chargement des rations...
@@ -156,6 +178,16 @@ export default function MainApp(): React.ReactElement {
     return (
       <View style={styles.fullScreenContainer}>
         <StatusBar hidden={true} />
+        
+        {/* Bouton Manuel en haut à gauche */}
+        <TouchableOpacity
+          style={styles.manualButton}
+          onPress={handleManualPress}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.manualIcon}>📖</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.reloadButton}
           onPress={handleReloadPress}
@@ -223,6 +255,15 @@ export default function MainApp(): React.ReactElement {
     <View style={styles.fullScreenContainer}>
       <StatusBar hidden={true} />
       
+      {/* Bouton Manuel en haut à gauche */}
+      <TouchableOpacity
+        style={styles.manualButton}
+        onPress={handleManualPress}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.manualIcon}>📖</Text>
+      </TouchableOpacity>
+
       {/* Bouton Recharger en haut à droite */}
       <TouchableOpacity
         style={styles.reloadButton}
@@ -276,6 +317,39 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     ...(Platform.OS === 'web' && {
       minHeight: '100vh' as any,
+    }),
+  } as any,
+  // Bouton Manuel en haut à gauche
+  manualButton: {
+    position: 'absolute',
+    top: Platform.OS === 'web' ? 30 : 20,
+    left: Platform.OS === 'web' ? 30 : 20,
+    zIndex: 10,
+    backgroundColor: '#1E293B',
+    borderRadius: 25,
+    width: Platform.OS === 'web' ? 60 : 50,
+    height: Platform.OS === 'web' ? 60 : 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer' as any,
+      transition: 'all 0.2s ease' as any,
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)' as any,
+    }),
+  } as any,
+  manualIcon: {
+    fontSize: Platform.OS === 'web' ? 24 : 20,
+    ...(Platform.OS === 'web' && {
+      userSelect: 'none' as any,
+      top: -2,
     }),
   } as any,
   // Bouton Recharger en haut à droite
