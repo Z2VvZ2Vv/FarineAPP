@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Svg, { Circle } from 'react-native-svg';
+import { apiUrl } from '../../components/OtherComp'; 
 
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
 
@@ -28,11 +29,6 @@ interface MotorStatusResponse {
 }
 
 export default function ManualPage({ onBack }: ManualPageProps): React.ReactElement {
-  const apiUrl = Platform.select({
-    android: 'http://10.0.2.2:8000',
-    default: 'http://localhost:8000',
-  });
-
   const [currentWeight, setCurrentWeight] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

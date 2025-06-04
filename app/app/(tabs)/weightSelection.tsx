@@ -10,7 +10,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Recipe } from '../../components/Recipe';
+import { Recipe } from '../../components/OtherComp';
 import ConfirmationScreen from './confirmationScreen';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
@@ -60,6 +60,12 @@ export default function WeightSelectionScreen({
     }
   };
 
+  const handleHomePress = (): void => {
+    setShowConfirmation(false);
+    setSelectedWeight(null);
+    onBack();
+  };
+
   const isWeb = Platform.OS === 'web';
 
   // Fonction pour obtenir les styles de View de manière type-safe
@@ -79,6 +85,7 @@ export default function WeightSelectionScreen({
         selectedWeight={selectedWeight}
         onBack={handleConfirmationBack}
         onConfirm={handleConfirmationConfirm}
+        onHome={handleHomePress}
       />
     );
   }

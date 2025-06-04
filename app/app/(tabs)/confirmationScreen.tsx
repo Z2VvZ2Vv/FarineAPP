@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   TextStyle,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Recipe } from '../../components/Recipe';
+import { Recipe } from '../../components/OtherComp';
+import RationScreen from './rationScreen';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
@@ -19,20 +20,29 @@ interface ConfirmationScreenProps {
   recipe: Recipe;
   selectedWeight: number;
   onBack: () => void;
-  onConfirm: () => void;
+  onConfirm: (recipe: Recipe, totalWeight: number) => void;
+  onHome: () => void;
 }
 
 export default function ConfirmationScreen({ 
   recipe, 
   selectedWeight,
   onBack, 
-  onConfirm 
+  onConfirm,
+  onHome,
 }: ConfirmationScreenProps): React.ReactElement {
+
+  const [confirmation, setConfirmation] = useState<boolean>(false);
 
   const formatIngredients = (ingredients: Recipe['ingredients']): string => {
     return ingredients
       .map(ingredient => `${ingredient.name} (${ingredient.percentage}%)`)
       .join(', ');
+  };
+
+  const handleConfirm = () => {
+    onConfirm(recipe, selectedWeight);
+    setConfirmation(true);
   };
 
   const isWeb = Platform.OS === 'web';
@@ -46,6 +56,16 @@ export default function ConfirmationScreen({
   const getTextStyle = (...styles: (TextStyle | false | undefined)[]): TextStyle[] => {
     return styles.filter(Boolean) as TextStyle[];
   };
+
+  if (confirmation) {
+    return (
+      <RationScreen 
+        recipe={recipe}
+        totalWeight={selectedWeight}
+        onHome={onHome}
+      />
+    );
+  }
 
   return (
     <View style={getViewStyle(styles.fullScreenContainer, isWeb && styles.webContainer)}>
@@ -122,11 +142,11 @@ export default function ConfirmationScreen({
 
               <TouchableOpacity
                 style={getViewStyle(styles.primaryButton, isWeb && styles.webPrimaryButton)}
-                onPress={onConfirm}
+                onPress={handleConfirm}
                 activeOpacity={0.8}
               >
                 <Text style={getTextStyle(styles.buttonText, styles.primaryButtonText, isWeb && styles.webButtonText)}>
-                  Oui, confirmer
+                  Confirmer
                 </Text>
               </TouchableOpacity>
             </View>
@@ -313,7 +333,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 16,
   } as TextStyle,
-  
+
   buttonContainer: {
     flexDirection: 'row',
     gap: 16,
@@ -473,7 +493,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     paddingHorizontal: 0,
   } as TextStyle,
-  
+
   webButtonContainer: {
     gap: 20,
   } as ViewStyle,

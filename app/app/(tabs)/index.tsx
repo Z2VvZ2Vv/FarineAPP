@@ -10,26 +10,25 @@ import {
   Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Recipe } from '../../components/Recipe';
+import { Recipe, apiUrl } from '../../components/OtherComp';
 import ManualPage from './manualPage';
+import WeightSelectionScreen from './weightSelection';
+import RationScreen from './rationScreen';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
 
-// Import du composant WeightSelectionScreen
-import WeightSelectionScreen from './weightSelection';
-
 export default function MainApp(): React.ReactElement {
-  const apiUrl = Platform.select({
-    android: 'http://10.0.2.2:8000',
-    default: 'http://localhost:8000', // Pour le web et d'autres plateformes
-  });
-
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'weight' | 'manual'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'weight' | 'manual' | 'ration'>('home');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [mixStatus, setMixStatus] = useState<{
+    inProgress: boolean;
+    totalWeight: number;
+    recipeID: string;
+  } | null>(null);
 
   // Fonction pour récupérer les recettes depuis l'API
   const fetchRecipes = async () => {
@@ -48,9 +47,42 @@ export default function MainApp(): React.ReactElement {
     }
   };
 
+  // Fonction pour vérifier le statut du mix
+  const checkMixStatus = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/mix/status`);
+      if (response.ok) {
+        const status = await response.json();
+        if (status.inProgress && status.recipeID && status.totalWeight) {
+          // Trouver la recette correspondante
+          const recipe = recipes.find(r => r.name === status.recipeID);
+          if (recipe) {
+            setMixStatus(status);
+            setSelectedRecipe(recipe);
+            setCurrentScreen('ration');
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Erreur lors de la vérification du statut:', error);
+    }
+  };
+
+  // Initialisation de l'app
   useEffect(() => {
-    fetchRecipes();
+    const initializeApp = async () => {
+      await fetchRecipes();
+    };
+    
+    initializeApp();
   }, []);
+
+  // Vérifier le statut après avoir chargé les recettes
+  useEffect(() => {
+    if (recipes.length > 0) {
+      checkMixStatus();
+    }
+  }, [recipes]);
 
   const handleRationPress = (recipe: Recipe): void => {
     setSelectedRecipe(recipe);
@@ -60,11 +92,11 @@ export default function MainApp(): React.ReactElement {
   const handleBackToHome = (): void => {
     setCurrentScreen('home');
     setSelectedRecipe(null);
+    setMixStatus(null);
   };
 
   const handleWeightContinue = (selectedWeight: number): void => {
-    console.log(`Poids sélectionné: ${selectedWeight}kg pour la recette: ${selectedRecipe?.name}`);
-    // Ici vous pouvez naviguer vers la prochaine étape
+    console.log(`Poids sélectionné pour la ration ${selectedRecipe?.name}: ${selectedWeight}`);
   };
 
   const handleManualPress = (): void => {
@@ -87,8 +119,12 @@ export default function MainApp(): React.ReactElement {
     }
   };
 
-  const handleReloadPress = (): void => {
-    fetchRecipes();
+  const handleReloadPress = async (): Promise<void> => {
+    await fetchRecipes();
+    // Vérifier aussi le statut du mix après le rechargement
+    if (recipes.length > 0) {
+      await checkMixStatus();
+    }
   };
 
   // Fonction pour obtenir une icône basée sur le nom de la recette
@@ -124,6 +160,17 @@ export default function MainApp(): React.ReactElement {
       .map(ingredient => `${ingredient.name} (${ingredient.percentage}%)`)
       .join('\n');
   };
+
+  // Si on est sur l'écran de ration (mix en cours)
+  if (currentScreen === 'ration' && selectedRecipe && mixStatus) {
+    return (
+      <RationScreen
+        recipe={selectedRecipe}
+        totalWeight={mixStatus.totalWeight}
+        onHome={handleBackToHome}
+      />
+    );
+  }
 
   if (currentScreen === 'manual') {
     return (
