@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit3, Trash2, Home, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Edit3, Trash2, Home, AlertCircle, CheckCircle, BarChart3 } from 'lucide-react';
 import API_URL from "../config";
+import FarineLogsPage from './FarineLogsPage'; 
 
 const FarineApp = () => {
   //change this for production
@@ -22,6 +23,9 @@ const FarineApp = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState(null);
+  
+  // Nouvel état pour la navigation
+  const [currentPage, setCurrentPage] = useState('home'); // 'home' ou 'logs'
 
   useEffect(() => {
     const checkMobile = () => {
@@ -35,6 +39,11 @@ const FarineApp = () => {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Si on est sur la page logs, on affiche le composant logs
+  if (currentPage === 'logs') {
+    return <FarineLogsPage onBack={() => setCurrentPage('home')} />;
+  }
 
   // alert function
   const showAlert = (message, type = 'error') => {
@@ -600,6 +609,17 @@ const FarineApp = () => {
             >
               <Plus size={20} />
               <span>Ajouter une ration</span>
+            </div>
+
+            {/* Nouveau lien vers les logs */}
+            <div 
+              style={styles.navItem}
+              onClick={() => setCurrentPage('logs')}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#374151'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              <BarChart3 size={20} />
+              <span>Logs de ressources</span>
             </div>
           </nav>
         </div>

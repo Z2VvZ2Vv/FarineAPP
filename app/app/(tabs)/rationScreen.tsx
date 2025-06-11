@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   Platform,
   ViewStyle,
   TextStyle,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Recipe, apiUrl } from '../../components/OtherComp';
+import CompletionScreen from './completionScreen';
 
 // Types pour les API responses
 interface WeightResponse {
@@ -34,8 +34,6 @@ interface StepInfo {
   emoji: string;
 }
 
-const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
-
 interface WeighingScreenProps {
   recipe: Recipe;
   totalWeight: number;
@@ -50,12 +48,12 @@ export default function RationScreen({
 
   const [currentWeight, setCurrentWeight] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isConnected, setIsConnected] = useState(true);
   const [lastWeightUpdate, setLastWeightUpdate] = useState(Date.now());
   const [mixStatus, setMixStatus] = useState<MixStatusResponse | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
 
   // Ordre fixe des étapes : Blé/Maïs, Luzerne, Lin
   const generateSteps = (): StepInfo[] => {
@@ -97,111 +95,161 @@ export default function RationScreen({
   const currentStepProgress = Math.min(Math.max((currentWeight - previousStepsWeight) / currentStep.targetWeight * 100, 0), 100);
   const overallProgress = Math.min((currentWeight / totalWeight) * 100, 100);
 
-  // Fonction pour faire les appels API
-  const apiCall = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
-    try {
-      const response = await fetch(`${apiUrl}/api${endpoint}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      setIsConnected(true);
-      return await response.json();
-    } catch (err) {
-      console.error(`API call failed for ${endpoint}:`, err);
-      setIsConnected(false);
-      
-      // Alerte uniquement pour les erreurs critiques (pas pour le poids et statut en temps réel)
-      if (endpoint !== '/weight' && endpoint !== '/mix/status') {
-        if (Platform.OS === 'web') {
-          alert(`Erreur de connexion API: ${endpoint}\n${err instanceof Error ? err.message : 'Erreur inconnue'}`);
-        } else {
-          Alert.alert(
-            'Erreur de connexion',
-            `Impossible de se connecter à l'API pour ${endpoint}.\n\n${err instanceof Error ? err.message : 'Erreur inconnue'}`,
-            [{ text: 'OK' }]
-          );
-        }
-      }
-      
-      return null;
+ // Fonction pour faire les appels API
+const apiCall = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
+  try {
+    const response = await fetch(`${apiUrl}/api${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    setIsConnected(true);
+    return await response.json();
+  } catch (err) {
+    console.error(`API call failed for ${endpoint}:`, err);
+    setIsConnected(false);
+    
+    // Alerte uniquement pour les erreurs critiques (pas pour le poids et statut en temps réel)
+    if (endpoint !== '/weight' && endpoint !== '/mix/status') {
+      if (Platform.OS === 'web') {
+        alert(`Erreur de connexion API: ${endpoint}\n${err instanceof Error ? err.message : 'Erreur inconnue'}`);
+      } else {
+        Alert.alert(
+          'Erreur de connexion',
+          `Impossible de se connecter à l'API pour ${endpoint}.\n\n${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+          [{ text: 'OK' }]
+        );
+      }
+    }
+    
+    return null;
+  }
+};
 
-  // Récupération du poids en temps réel
-  useEffect(() => {
-    const fetchWeight = async () => {
+// Récupération du poids en temps réel
+useEffect(() => {
+  if (showCompletion) return; // Arrêter les appels si le mélange est terminé
+
+  // Variable locale pour éviter les appels multiples dans la même session d'effet
+  let completionInProgress = false;
+
+  const fetchWeight = async () => {
+    try {
       const weightData: WeightResponse | null = await apiCall('/weight');
       if (weightData) {
         setCurrentWeight(weightData.value);
         setLastWeightUpdate(Date.now());
         setIsConnected(true);
+        
+        // Vérifier si le poids cible est atteint
+        if (weightData.value >= totalWeight && !showCompletion && !completionInProgress) {
+          console.log('Poids cible atteint, arrêt du mélange...');
+          
+          // Marquer immédiatement que la completion est en cours
+          completionInProgress = true;
+          
+          // Afficher l'écran de completion après un délai
+          setTimeout(() => {
+            setShowCompletion(true);
+          }, 2000);
+        }
       }
-    };
+    } catch (error) {
+      console.error('Erreur lors de la récupération du poids:', error);
+    }
+  };
 
+  if (!showCompletion) {
     fetchWeight();
     const interval = setInterval(fetchWeight, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }
+}, [totalWeight, showCompletion]);
 
-  // Récupération du statut du mélange en temps réel
-  useEffect(() => {
-    const fetchMixStatus = async () => {
+// Récupération du statut du mélange en temps réel
+useEffect(() => {
+  if (showCompletion) return; // Arrêter les appels si le mélange est terminé
+
+  const fetchMixStatus = async () => {
+    try {
       const statusData: MixStatusResponse | null = await apiCall('/mix/status');
       if (statusData) {
         setMixStatus(statusData);
         
-        // Mise à jour des états locaux basés sur le statut
-        setIsRunning(statusData.inProgress);
-        
         // Si le mélange n'est plus en cours et qu'on était initialisé, retourner à l'accueil
-        if (hasInitialized && !statusData.inProgress) {
-          console.log('Mélange terminé, retour à l\'accueil');
+        // MAIS seulement si on n'est pas en mode completion
+        if (hasInitialized && !statusData.inProgress && !showCompletion) {
+          console.log('Mélange terminé par le serveur, retour à l\'accueil');
           onHome();
           return;
         }
       }
-    };
-
-    fetchMixStatus();
-    const interval = setInterval(fetchMixStatus, 2000); // Vérifier toutes les 2 secondes
-    return () => clearInterval(interval);
-  }, [hasInitialized, onHome]);
-
-  // Vérification de la connexion (alerte si pas de mise à jour de poids depuis 10 secondes)
-  useEffect(() => {
-    const checkConnection = () => {
-      const now = Date.now();
-      if (now - lastWeightUpdate > 10000) { // 10 secondes
-        setIsConnected(false);
-      }
-    };
-
-    const connectionInterval = setInterval(checkConnection, 5000); // Vérifier toutes les 5 secondes
-    return () => clearInterval(connectionInterval);
-  }, [lastWeightUpdate]);
-
-  // Alerte de perte de connexion
-  useEffect(() => {
-    if (!isConnected) {
-      if (Platform.OS === 'web') {
-        alert('⚠️ Connexion perdue avec la balance!\nVérifiez votre connexion réseau.');
-      } else {
-        Alert.alert(
-          '⚠️ Connexion perdue',
-          'La connexion avec la balance a été perdue.\n\nVérifiez votre connexion réseau et redémarrez l\'application si nécessaire.',
-          [{ text: 'OK' }]
-        );
-      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération du statut:', error);
     }
-  }, [isConnected]);
+  };
+
+  if (!showCompletion) {
+    fetchMixStatus();
+    const interval = setInterval(fetchMixStatus, 2000);
+    return () => clearInterval(interval);
+  }
+}, [hasInitialized, onHome, showCompletion]);
+
+// Vérification de la connexion (alerte si pas de mise à jour de poids depuis 10 secondes)
+useEffect(() => {
+  if (showCompletion) return; // Arrêter la vérification si le mélange est terminé
+
+  const checkConnection = () => {
+    const now = Date.now();
+    if (now - lastWeightUpdate > 10000) { // 10 secondes
+      console.log('Perte de connexion détectée - pas de mise à jour de poids depuis 10 secondes');
+      setIsConnected(false);
+    }
+  };
+
+  if (!showCompletion) {
+    const connectionInterval = setInterval(checkConnection, 5000);
+    return () => clearInterval(connectionInterval);
+  }
+}, [lastWeightUpdate, showCompletion]);
+
+// Alerte de perte de connexion (uniquement si pas en mode completion)
+useEffect(() => {
+  if (!isConnected && !showCompletion) {
+    console.log('Affichage de l\'alerte de perte de connexion');
+    
+    if (Platform.OS === 'web') {
+      alert('⚠️ Connexion perdue avec la balance!\nVérifiez votre connexion réseau.');
+    } else {
+      Alert.alert(
+        '⚠️ Connexion perdue',
+        'La connexion avec la balance a été perdue.\n\nVérifiez votre connexion réseau et redémarrez l\'application si nécessaire.',
+        [{ text: 'OK' }]
+      );
+    }
+  }
+}, [isConnected, showCompletion]);
+
+// Nettoyage lors du démontage du composant
+useEffect(() => {
+  return () => {
+    // Arrêter le mélange si le composant est démonté et que le mélange est encore en cours
+    if (!showCompletion) {
+      console.log('Démontage du composant, arrêt du mélange...');
+      apiCall('/mix/stop', 'POST').catch(error => 
+        console.error('Erreur lors de l\'arrêt du mélange au démontage:', error)
+      );
+    }
+  };
+}, [showCompletion]);
 
   // Passage automatique à l'étape suivante basé sur le poids
   useEffect(() => {
@@ -221,7 +269,6 @@ export default function RationScreen({
       // Si un mélange est déjà en cours
       if (mixStatus.inProgress) {
         console.log('Mélange déjà en cours, pas de nouveau démarrage');
-        setIsRunning(true);
         setIsPaused(false);
         setHasInitialized(true);
         return;
@@ -236,7 +283,6 @@ export default function RationScreen({
       
       const result = await apiCall('/mix/start', 'POST', rationData);
       if (result !== null) {
-        setIsRunning(true);
         setIsPaused(false);
         console.log('Nouveau mélange démarré avec succès');
       }
@@ -260,7 +306,6 @@ export default function RationScreen({
   const handleStop = async () => {
     const result = await apiCall('/mix/stop', 'POST');
     if (result !== null) {
-      setIsRunning(false);
       setIsPaused(false);
     }
     // Toujours retourner à la home, même si l'API échoue
@@ -281,16 +326,22 @@ export default function RationScreen({
 
   const isWeb = Platform.OS === 'web';
 
+  if (showCompletion) {
+    return (
+      <CompletionScreen 
+        recipe={recipe} 
+        totalWeight={totalWeight}
+        onHome={onHome} 
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar hidden={true} />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.homeButton} onPress={onHome}>
-          <Text style={isWeb ? styles.homeIconWeb : styles.homeIcon}>🏠</Text>
-        </TouchableOpacity>
-
         <View style={styles.titleContainer}>
           <Text style={isWeb ? styles.appTitleWeb : styles.appTitle}>🌾 FarineAPP</Text>
           {!isConnected && (

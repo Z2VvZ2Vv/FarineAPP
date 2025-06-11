@@ -1,0 +1,14 @@
+{
+  "name": "farine-app",
+  "version": "0.0.1",
+  "scripts": {
+    "install-all": "npm --prefix app install && npm --prefix frontend install",
+    "dev": "concurrently \"npm run start-app\" \"npm run start-frontend\" \"npm run start-backend\"",
+    "start-app": "cd app && npx expo",
+    "start-frontend": "cd frontend && npm run dev",
+    "start-backend": "cd backend && uvicorn main_backend:app --reload"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -215,7 +215,7 @@ export default function ManualPage({ onBack }: ManualPageProps): React.ReactElem
                   activeOpacity={0.8}
                 >
                   <Text style={styles.motorButtonIcon}>
-                    {(motorStates.corn || motorStates.alfalfa) ? '⏹' : '▶️'}
+                    {(motorStates.corn || motorStates.alfalfa) ? '⏹' : '▶'}
                   </Text>
                   <Text style={styles.motorButtonText}>
                     {(motorStates.corn || motorStates.alfalfa) ? 'Arrêter tout' : 'Démarrer tout'}

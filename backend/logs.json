@@ -1,0 +1,38 @@
+{
+  "total_usage": {
+    "Mais/Blé": {
+      "total_kg": 2195.57,
+      "total_sessions": 32,
+      "first_used": "2025-06-07",
+      "last_used": "2025-06-11"
+    },
+    "Luzerne": {
+      "total_kg": 2221.43,
+      "total_sessions": 32,
+      "first_used": "2025-06-07",
+      "last_used": "2025-06-11"
+    },
+    "Lin": {
+      "total_kg": 2221.43,
+      "total_sessions": 32,
+      "first_used": "2025-06-07",
+      "last_used": "2025-06-11"
+    }
+  },
+  "monthly_usage": {
+    "2025-06": {
+      "Mais/Blé": {
+        "total_kg": 2195.57,
+        "sessions": 32
+      },
+      "Luzerne": {
+        "total_kg": 2221.43,
+        "sessions": 32
+      },
+      "Lin": {
+        "total_kg": 2221.43,
+        "sessions": 32
+      }
+    }
+  }
+}
