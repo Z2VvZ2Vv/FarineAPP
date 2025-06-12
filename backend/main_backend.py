@@ -377,7 +377,7 @@ async def get_live_weight():
     global weight
     try:
         # Simulation of live weight reading
-        increment = random.uniform(10.0, 20.0)
+        increment = random.uniform(10.0, 200.0)
         weight += increment
 
         if weight >= mix_status["totalWeight"]:

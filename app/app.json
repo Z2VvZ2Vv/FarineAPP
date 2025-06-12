@@ -3,7 +3,7 @@
     "name": "FarineAPP",
     "slug": "app",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "statusBarHidden": true,
     "androidStatusBar": {
       "hidden": true,

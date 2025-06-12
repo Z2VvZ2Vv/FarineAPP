@@ -14,6 +14,7 @@ import { Recipe, apiUrl } from '../../components/OtherComp';
 import ManualPage from './manualPage';
 import WeightSelectionScreen from './weightSelection';
 import RationScreen from './rationScreen';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 // Utilise 'screen' au lieu de 'window' pour les vraies dimensions
 const { width, height } = Dimensions.get(Platform.OS === 'web' ? 'window' : 'screen');
@@ -67,6 +68,11 @@ export default function MainApp(): React.ReactElement {
       console.log('Erreur lors de la vérification du statut:', error);
     }
   };
+
+  // orientation de l'écran
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+  }, []);
 
   // Initialisation de l'app
   useEffect(() => {

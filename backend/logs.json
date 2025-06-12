@@ -1,37 +1,37 @@
 {
   "total_usage": {
     "Mais/Blé": {
-      "total_kg": 2195.57,
-      "total_sessions": 32,
+      "total_kg": 4438.53,
+      "total_sessions": 65,
       "first_used": "2025-06-07",
-      "last_used": "2025-06-11"
+      "last_used": "2025-06-12"
     },
     "Luzerne": {
-      "total_kg": 2221.43,
-      "total_sessions": 32,
+      "total_kg": 4738.21,
+      "total_sessions": 65,
       "first_used": "2025-06-07",
-      "last_used": "2025-06-11"
+      "last_used": "2025-06-12"
     },
     "Lin": {
-      "total_kg": 2221.43,
-      "total_sessions": 32,
+      "total_kg": 4738.21,
+      "total_sessions": 65,
       "first_used": "2025-06-07",
-      "last_used": "2025-06-11"
+      "last_used": "2025-06-12"
     }
   },
   "monthly_usage": {
     "2025-06": {
       "Mais/Blé": {
-        "total_kg": 2195.57,
-        "sessions": 32
+        "total_kg": 4438.53,
+        "sessions": 65
       },
       "Luzerne": {
-        "total_kg": 2221.43,
-        "sessions": 32
+        "total_kg": 4738.21,
+        "sessions": 65
       },
       "Lin": {
-        "total_kg": 2221.43,
-        "sessions": 32
+        "total_kg": 4738.21,
+        "sessions": 65
       }
     }
   }

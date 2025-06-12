@@ -304,10 +304,8 @@ useEffect(() => {
   };
 
   const handleStop = async () => {
-    const result = await apiCall('/mix/stop', 'POST');
-    if (result !== null) {
-      setIsPaused(false);
-    }
+    setIsPaused(false);
+    
     // Toujours retourner à la home, même si l'API échoue
     onHome();
   };
