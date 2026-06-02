@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+__pycache__/
+*.pyc
+rpi-serial-server/data/
+win-app/server/data/state.json
+win-app/server/data/logs.json
 
 # Editor directories and files
 .vscode/*
