@@ -89,3 +89,9 @@ C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\qualifiers.txt
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\qualifiers.txt.intermediate
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\MultipleQualifiersPerDimensionFound.txt
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\appicon.ico
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\SettingsWindow.g.i.cs
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\SettingsWindow.g.cs
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\SettingsWindow.xaml
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\obj\x64\Debug\net8.0-windows10.0.19041.0\SettingsWindow.xbf
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\SettingsWindow.xbf

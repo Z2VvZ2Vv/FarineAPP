@@ -10,10 +10,13 @@ const appState = {
   manualTimer: null,
   currentStepIndex: 0,
   editingRecipeName: null,
+  motors: { corn: false, alfalfa: false },
+  tared: false,
 };
 
 const weightOptions = [200, 400, 600, 800];
 const ingredientNames = ["Mais/Ble", "Luzerne", "Lin"];
+const motorLabels = { corn: "Maïs / Blé", alfalfa: "Luzerne" };
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -342,9 +345,6 @@ function renderMix() {
           <h1>Ration en cours</h1>
           <p id="connection-warning" hidden>La balance ne répond plus. Le dernier poids reste affiché.</p>
         </div>
-        <div class="mix-actions">
-          <button class="button danger" type="button" id="stop-button">⛔ Arrêter</button>
-        </div>
       </header>
       <section class="mix-grid">
         <article class="focus-card">
@@ -375,6 +375,9 @@ function renderMix() {
           <p class="ring-remaining" id="remaining-weight">Encore 0.0 kg à ajouter</p>
         </article>
       </section>
+      <footer class="mix-footer">
+        <button class="button danger mix-stop" type="button" id="stop-button">⛔ Arrêter</button>
+      </footer>
     </main>
   `;
 
@@ -443,6 +446,26 @@ async function tareScale() {
   }
 }
 
+async function untareScale() {
+  try {
+    await request("/api/tare/reset", { method: "POST", body: "{}" });
+    showToast("Tare retirée.", "success");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function toggleTare() {
+  const tared = appState.tared;
+  try {
+    await request(tared ? "/api/tare/reset" : "/api/tare", { method: "POST", body: "{}" });
+    showToast(tared ? "Tare retirée." : "Balance remise à zéro.", "success");
+    await refreshManual();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
 async function stopMix() {
   try {
     await request("/api/mix/stop", { method: "POST", body: "{}" });
@@ -472,10 +495,16 @@ function renderCompletion() {
         <div class="confirm-icon success" aria-hidden="true">✅</div>
         <h2>${escapeHtml(appState.selectedRecipe?.name || "Ration")}</h2>
         <strong class="big-number">${escapeHtml(appState.selectedWeight || 0)} kg</strong>
+        <div class="tare-actions">
+          <button class="button warn" type="button" id="finish-tare">⚖️ Faire la tare</button>
+          <button class="button secondary" type="button" id="finish-untare">↩️ Retirer la tare</button>
+        </div>
         <button class="button primary" type="button" data-action="home">Nouvelle ration</button>
       </section>
     </main>
   `;
+  app.querySelector("#finish-tare").addEventListener("click", tareScale);
+  app.querySelector("#finish-untare").addEventListener("click", untareScale);
   bindActions();
 }
 
@@ -483,7 +512,7 @@ async function renderManual() {
   stopTimers();
   app.innerHTML = `
     <main class="screen page-screen manual-screen" aria-label="Mode manuel">
-      ${pageTop("Mode manuel", "Pour vérifier le poids ou remettre la balance à zéro.", {
+      ${pageTop("Mode manuel", "Vérifiez le poids, faites la tare ou pilotez les moteurs.", {
         actions: iconButton("Actualiser", "🔄", "manual", "quiet"),
       })}
       <section class="manual-card">
@@ -492,17 +521,69 @@ async function renderManual() {
           <strong id="manual-weight">--</strong>
           <small id="manual-weight-label">Poids actuel</small>
         </div>
-        <div class="manual-actions">
-          <button class="button warn" type="button" id="manual-tare">⚖️ Faire la tare</button>
-          <button class="button secondary" type="button" data-action="home">Retour à l'accueil</button>
+        <div class="manual-side">
+          <div class="manual-motors" aria-label="Commande des moteurs">
+            <p class="manual-motors-title">Moteurs</p>
+            <div class="motor-grid">
+              ${Object.entries(motorLabels).map(([motor, label]) => `
+                <button class="motor-toggle" type="button" data-motor="${motor}" aria-pressed="false">
+                  <span class="motor-name">${escapeHtml(label)}</span>
+                  <span class="motor-state">…</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+          <button class="button warn full" type="button" id="manual-tare-toggle">⚖️ Faire la tare</button>
         </div>
       </section>
     </main>
   `;
   bindActions();
-  app.querySelector("#manual-tare").addEventListener("click", tareScale);
+  app.querySelector("#manual-tare-toggle").addEventListener("click", toggleTare);
+  app.querySelectorAll("[data-motor]").forEach((button) => {
+    button.addEventListener("click", () => toggleMotor(button.dataset.motor));
+  });
+  updateMotorButtons();
+  await refreshMotors();
   await refreshManual();
   appState.manualTimer = window.setInterval(refreshManual, 1000);
+}
+
+function updateMotorButtons() {
+  app.querySelectorAll("[data-motor]").forEach((button) => {
+    const on = Boolean(appState.motors[button.dataset.motor]);
+    button.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    const stateLabel = button.querySelector(".motor-state");
+    if (stateLabel) stateLabel.textContent = on ? "● En marche" : "○ Arrêté";
+  });
+}
+
+async function refreshMotors() {
+  try {
+    const payload = await request("/api/motors/status");
+    appState.motors = payload.motors || appState.motors;
+    updateMotorButtons();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function toggleMotor(motor) {
+  const turnOn = !appState.motors[motor];
+  try {
+    const result = await request(`/api/motors/${motor}/${turnOn ? "on" : "off"}`, {
+      method: "POST",
+      body: "{}",
+    });
+    appState.motors = result.motors || appState.motors;
+    updateMotorButtons();
+    showToast(`${motorLabels[motor]} ${appState.motors[motor] ? "en marche." : "arrêté."}`, "success");
+  } catch (error) {
+    if (error?.motors) appState.motors = error.motors;
+    updateMotorButtons();
+    showToast(error.message, "error");
+  }
 }
 
 async function refreshManual() {
@@ -511,6 +592,13 @@ async function refreshManual() {
     app.querySelector("#manual-weight").textContent = `${Number(weight.value || 0).toFixed(1)} kg`;
     app.querySelector("#manual-weight-label").textContent = weight.error ? "Dernier poids connu" : "Poids actuel";
     app.querySelector("#manual-scale-ring").classList.toggle("error", Boolean(weight.error));
+
+    appState.tared = Boolean(weight.tared);
+    const tareToggle = app.querySelector("#manual-tare-toggle");
+    if (tareToggle) {
+      tareToggle.textContent = appState.tared ? "↩️ Retirer la tare" : "⚖️ Faire la tare";
+      tareToggle.className = `button full ${appState.tared ? "secondary" : "warn"}`;
+    }
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -527,13 +615,12 @@ function renderAdmin(tab = "rations") {
 
   app.innerHTML = `
     <main class="admin-shell">
-      ${pageTop(title, subtitle, {
-        actions: `
-          ${adminTab("Rations", "admin-rations", tab === "rations", "🥣")}
-          ${adminTab("Système", "admin-status", tab === "status", "🩺")}
-          ${adminTab("Stats", "admin-stats", tab === "stats", "📊")}
-        `,
-      })}
+      ${pageTop(title, subtitle)}
+      <nav class="admin-tabs" aria-label="Sections d'administration">
+        ${adminTab("Rations", "admin-rations", tab === "rations", "🥣")}
+        ${adminTab("Système", "admin-status", tab === "status", "🩺")}
+        ${adminTab("Stats", "admin-stats", tab === "stats", "📊")}
+      </nav>
       <section id="admin-content" class="admin-content"></section>
     </main>
   `;

@@ -226,25 +226,27 @@ namespace FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo
         
         private void InitTypeTables()
         {
-            _typeNameTable = new string[8];
+            _typeNameTable = new string[9];
             _typeNameTable[0] = "FarineApp.WinUI.MainWindow";
             _typeNameTable[1] = "Microsoft.UI.Xaml.Window";
-            _typeNameTable[2] = "Microsoft.UI.Xaml.Controls.TreeViewNode";
-            _typeNameTable[3] = "Microsoft.UI.Xaml.DependencyObject";
-            _typeNameTable[4] = "System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>";
-            _typeNameTable[5] = "Object";
-            _typeNameTable[6] = "Int32";
-            _typeNameTable[7] = "Boolean";
+            _typeNameTable[2] = "FarineApp.WinUI.SettingsWindow";
+            _typeNameTable[3] = "Microsoft.UI.Xaml.Controls.TreeViewNode";
+            _typeNameTable[4] = "Microsoft.UI.Xaml.DependencyObject";
+            _typeNameTable[5] = "System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>";
+            _typeNameTable[6] = "Object";
+            _typeNameTable[7] = "Int32";
+            _typeNameTable[8] = "Boolean";
 
-            _typeTable = new global::System.Type[8];
+            _typeTable = new global::System.Type[9];
             _typeTable[0] = typeof(global::FarineApp.WinUI.MainWindow);
             _typeTable[1] = typeof(global::Microsoft.UI.Xaml.Window);
-            _typeTable[2] = typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode);
-            _typeTable[3] = typeof(global::Microsoft.UI.Xaml.DependencyObject);
-            _typeTable[4] = typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>);
-            _typeTable[5] = typeof(global::System.Object);
-            _typeTable[6] = typeof(global::System.Int32);
-            _typeTable[7] = typeof(global::System.Boolean);
+            _typeTable[2] = typeof(global::FarineApp.WinUI.SettingsWindow);
+            _typeTable[3] = typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode);
+            _typeTable[4] = typeof(global::Microsoft.UI.Xaml.DependencyObject);
+            _typeTable[5] = typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>);
+            _typeTable[6] = typeof(global::System.Object);
+            _typeTable[7] = typeof(global::System.Int32);
+            _typeTable[8] = typeof(global::System.Boolean);
         }
 
         private int LookupTypeIndexByName(string typeName)
@@ -280,11 +282,13 @@ namespace FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo
         }
 
         private object Activate_0_MainWindow() { return new global::FarineApp.WinUI.MainWindow(); }
-        private object Activate_2_TreeViewNode() { return new global::Microsoft.UI.Xaml.Controls.TreeViewNode(); }
+        private object Activate_2_SettingsWindow() { return new global::FarineApp.WinUI.SettingsWindow(); }
+        private object Activate_3_TreeViewNode() { return new global::Microsoft.UI.Xaml.Controls.TreeViewNode(); }
         private void StaticInitializer_0_MainWindow() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::FarineApp.WinUI.MainWindow).TypeHandle);
-        private void StaticInitializer_2_TreeViewNode() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode).TypeHandle);
-        private void StaticInitializer_4_IList() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>).TypeHandle);
-        private void VectorAdd_4_IList(object instance, object item)
+        private void StaticInitializer_2_SettingsWindow() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::FarineApp.WinUI.SettingsWindow).TypeHandle);
+        private void StaticInitializer_3_TreeViewNode() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode).TypeHandle);
+        private void StaticInitializer_5_IList() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>).TypeHandle);
+        private void VectorAdd_5_IList(object instance, object item)
         {
             var collection = (global::System.Collections.Generic.ICollection<global::Microsoft.UI.Xaml.Controls.TreeViewNode>)instance;
             var newItem = (global::Microsoft.UI.Xaml.Controls.TreeViewNode)item;
@@ -313,10 +317,18 @@ namespace FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo
                 xamlType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
 
-            case 2:   //  Microsoft.UI.Xaml.Controls.TreeViewNode
+            case 2:   //  FarineApp.WinUI.SettingsWindow
+                userType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Window"));
+                userType.Activator = Activate_2_SettingsWindow;
+                userType.StaticInitializer = StaticInitializer_2_SettingsWindow;
+                userType.SetIsLocalType();
+                xamlType = userType;
+                break;
+
+            case 3:   //  Microsoft.UI.Xaml.Controls.TreeViewNode
                 userType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.DependencyObject"));
-                userType.Activator = Activate_2_TreeViewNode;
-                userType.StaticInitializer = StaticInitializer_2_TreeViewNode;
+                userType.Activator = Activate_3_TreeViewNode;
+                userType.StaticInitializer = StaticInitializer_3_TreeViewNode;
                 userType.AddMemberName("Children");
                 userType.AddMemberName("Content");
                 userType.AddMemberName("Depth");
@@ -328,27 +340,27 @@ namespace FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo
                 xamlType = userType;
                 break;
 
-            case 3:   //  Microsoft.UI.Xaml.DependencyObject
+            case 4:   //  Microsoft.UI.Xaml.DependencyObject
                 xamlType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
 
-            case 4:   //  System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>
+            case 5:   //  System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>
                 userType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlUserType(this, typeName, type, null);
-                userType.StaticInitializer = StaticInitializer_4_IList;
-                userType.CollectionAdd = VectorAdd_4_IList;
+                userType.StaticInitializer = StaticInitializer_5_IList;
+                userType.CollectionAdd = VectorAdd_5_IList;
                 userType.SetIsReturnTypeStub();
                 xamlType = userType;
                 break;
 
-            case 5:   //  Object
+            case 6:   //  Object
                 xamlType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
 
-            case 6:   //  Int32
+            case 7:   //  Int32
                 xamlType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
 
-            case 7:   //  Boolean
+            case 8:   //  Boolean
                 xamlType = new global::FarineApp.WinUI.FarineApp_WinUI_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
             }

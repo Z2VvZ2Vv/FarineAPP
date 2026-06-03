@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -21,6 +24,8 @@ internal sealed class TrayAppContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _timer;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(1.5) };
     private readonly string _repoRoot;
+    private readonly Icon _appIcon = LoadAppIcon();
+    private ToolStripMenuItem? _serverToggleItem;
     private Process? _rpiProcess;
     private Process? _winServerProcess;
     private bool _rpiUp;
@@ -31,17 +36,22 @@ internal sealed class TrayAppContext : ApplicationContext
         _repoRoot = FindRepoRoot();
         _notifyIcon = new NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
-            Text = "FarineAPP - demarrage...",
+            Icon = _appIcon,
+            Text = "FarineAPP - démarrage...",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
+
+        // Sécurité: si le tray se ferme (normalement ou non), on coupe les serveurs.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => StopServers();
+        Application.ApplicationExit += (_, _) => StopServers();
 
         _timer = new System.Windows.Forms.Timer { Interval = 2500 };
         _timer.Tick += async (_, _) => await RefreshStatusAsync();
         _timer.Start();
 
         StartServers();
+        UpdateToggleLabel();
         _ = RefreshStatusAsync();
     }
 
@@ -50,13 +60,37 @@ internal sealed class TrayAppContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add("Ouvrir app native", null, (_, _) => OpenNativeApp());
         menu.Items.Add("Ouvrir admin web", null, (_, _) => OpenUrl("http://127.0.0.1:8080/"));
+        menu.Items.Add("Paramètres", null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Demarrer serveurs", null, (_, _) => StartServers());
-        menu.Items.Add("Arreter serveurs", null, (_, _) => StopServers());
+        _serverToggleItem = new ToolStripMenuItem("Arrêter les serveurs", null, (_, _) => ToggleServers());
+        menu.Items.Add(_serverToggleItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Statut", null, async (_, _) => await ShowStatusAsync());
         menu.Items.Add("Quitter", null, (_, _) => Exit());
         return menu;
+    }
+
+    private bool ServersRunning() =>
+        _rpiProcess is { HasExited: false } || _winServerProcess is { HasExited: false };
+
+    private void ToggleServers()
+    {
+        if (ServersRunning())
+        {
+            StopServers();
+        }
+        else
+        {
+            StartServers();
+        }
+        UpdateToggleLabel();
+        _ = RefreshStatusAsync();
+    }
+
+    private void UpdateToggleLabel()
+    {
+        if (_serverToggleItem is null) return;
+        _serverToggleItem.Text = ServersRunning() ? "Arrêter les serveurs" : "Démarrer les serveurs";
     }
 
     private static string FindRepoRoot()
@@ -146,10 +180,55 @@ internal sealed class TrayAppContext : ApplicationContext
             ? "FarineAPP - serveurs OK"
             : $"FarineAPP - RPi:{State(_rpiUp)} Win:{State(_winServerUp)}";
         _notifyIcon.Text = label.Length > 63 ? label[..63] : label;
-        _notifyIcon.Icon = _rpiUp && _winServerUp
-            ? System.Drawing.SystemIcons.Shield
-            : System.Drawing.SystemIcons.Warning;
+        UpdateToggleLabel();
     }
+
+    private static Icon LoadAppIcon()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "appicon.ico");
+            if (File.Exists(path)) return new Icon(path);
+        }
+        catch
+        {
+            // Fall back to a generated glyph below.
+        }
+        return CreateEmojiIcon("\U0001F33E");
+    }
+
+    private static Icon CreateEmojiIcon(string emoji, int size = 32)
+    {
+        using var bitmap = new Bitmap(size, size);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            g.Clear(Color.Transparent);
+            using var font = new Font("Segoe UI Emoji", size * 0.66f, FontStyle.Regular, GraphicsUnit.Pixel);
+            using var brush = new SolidBrush(Color.FromArgb(0xFC, 0xD3, 0x4D));
+            using var format = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center
+            };
+            g.DrawString(emoji, font, brush, new RectangleF(0, 0, size, size), format);
+        }
+
+        var handle = bitmap.GetHicon();
+        try
+        {
+            using var temp = Icon.FromHandle(handle);
+            return (Icon)temp.Clone();
+        }
+        finally
+        {
+            DestroyIcon(handle);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
 
     private async Task<bool> IsUpAsync(string url)
     {
@@ -168,7 +247,11 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private static string State(bool up) => up ? "OK" : "KO";
 
-    private void OpenNativeApp()
+    private void OpenNativeApp() => LaunchNative(null);
+
+    private void OpenSettings() => LaunchNative("settings");
+
+    private void LaunchNative(string? arguments)
     {
         var candidates = new[]
         {
@@ -187,7 +270,9 @@ internal sealed class TrayAppContext : ApplicationContext
             return;
         }
 
-        Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+        var psi = new ProcessStartInfo(exe) { UseShellExecute = true };
+        if (!string.IsNullOrEmpty(arguments)) psi.Arguments = arguments;
+        Process.Start(psi);
     }
 
     private static void OpenUrl(string url)
@@ -199,8 +284,8 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         await RefreshStatusAsync();
         MessageBox.Show(
-            $"RPi serial server: {State(_rpiUp)}\nWindows server: {State(_winServerUp)}\n\nRepo:\n{_repoRoot}",
-            "FarineAPP status",
+            $"RPi serial server : {State(_rpiUp)}\nWindows server : {State(_winServerUp)}",
+            "FarineAPP statut",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }
@@ -244,6 +329,7 @@ internal sealed class TrayAppContext : ApplicationContext
             _timer.Dispose();
             _http.Dispose();
             _notifyIcon.Dispose();
+            _appIcon.Dispose();
         }
         base.Dispose(disposing);
     }

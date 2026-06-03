@@ -1,11 +1,14 @@
-const CACHE_NAME = "farineapp-v1";
+const CACHE_NAME = "farineapp-v6";
 const ASSETS = [
   "/",
   "/index.html",
   "/app.css",
   "/app.js",
   "/manifest.json",
-  "/icon.svg"
+  "/icon.svg",
+  "/favicon.ico",
+  "/icon-192.png",
+  "/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {

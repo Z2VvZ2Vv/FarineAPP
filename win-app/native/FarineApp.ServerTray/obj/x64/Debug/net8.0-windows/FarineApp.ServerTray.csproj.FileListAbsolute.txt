@@ -1,3 +1,4 @@
+C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.ServerTray\bin\x64\Debug\net8.0-windows\appicon.ico
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.ServerTray\bin\x64\Debug\net8.0-windows\FarineApp.ServerTray.exe
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.ServerTray\bin\x64\Debug\net8.0-windows\FarineApp.ServerTray.deps.json
 C:\Users\Geoff\Documents\EFREI P1 INT\Python\FarineAPP\win-app\native\FarineApp.ServerTray\bin\x64\Debug\net8.0-windows\FarineApp.ServerTray.runtimeconfig.json

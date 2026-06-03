@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FarineApp.ServerTray")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+482aa707925f071d1941ca69750c55158dd53537")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ebc8e04d07cdbfa05b29d1b7cd80cbd1d4ce981d")]
 [assembly: System.Reflection.AssemblyProductAttribute("FarineApp.ServerTray")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FarineApp.ServerTray")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

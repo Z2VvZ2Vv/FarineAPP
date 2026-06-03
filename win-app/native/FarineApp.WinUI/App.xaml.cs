@@ -13,7 +13,9 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
+        var cmd = Environment.GetCommandLineArgs();
+        var settings = cmd.Length > 1 && string.Equals(cmd[1], "settings", StringComparison.OrdinalIgnoreCase);
+        _window = settings ? new SettingsWindow() : new MainWindow();
         _window.Activate();
     }
 }

@@ -5,4 +5,5 @@ $exe = Join-Path $root "native\FarineApp.WinUI\bin\x64\Debug\net8.0-windows10.0.
 . (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "msbuild-path.ps1")
 $msbuild = Get-FarineMsBuildPath
 & $msbuild $project /t:Restore,Build /p:Configuration=Debug /p:Platform=x64 /v:minimal
+Write-Host "Starting $exe"
 Start-Process $exe
