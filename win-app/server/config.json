@@ -1,0 +1,14 @@
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "rpiSerialServerUrl": "http://127.0.0.1:7001",
+  "shelly": {
+    "simulation": true,
+    "baseUrl": "http://192.168.33.1",
+    "relayMap": {
+      "corn": 0,
+      "alfalfa": 1
+    }
+  },
+  "weightPollMs": 1000
+}
