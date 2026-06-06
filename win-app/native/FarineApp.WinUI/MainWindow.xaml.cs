@@ -19,6 +19,12 @@ public sealed partial class MainWindow : Window
     private double _selectedWeight;
     private int _currentStepIndex;
     private bool _refreshing;
+    private bool _paused;
+    private Button? _pauseButton;
+    private TextBlock? _emptyWeight;
+    private List<string> _fillOrder = new();
+    private double? _mixTareBase;   // zéro local manuel (étape Lin), null = pas de tare
+    private double _lastMixWeight;
 
     private StackPanel? _focusCard;
     private StackPanel? _progressCard;
@@ -30,7 +36,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        ExtendsContentIntoTitleBar = true;
+        ExtendsContentIntoTitleBar = false;
+        Root.Margin = new Thickness(0, -1, 0, 0);
         TrySetWindowIcon();
         GetAppWindow()?.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
         _timer.Interval = TimeSpan.FromSeconds(1);
@@ -345,26 +352,139 @@ public sealed partial class MainWindow : Window
 
     // ------------------------------------------------------------ Confirmation
 
-    private void ShowConfirmation()
+    private void ShowConfirmation(bool resetOrder = true)
     {
         if (_selectedRecipe is null) return;
         var panel = CardPanel();
-        panel.Children.Add(EmojiBadge("✅", IconBg()));
-        panel.Children.Add(Centered("QUANTITÉ CHOISIE", 14, Accent(), true));
-        panel.Children.Add(Centered($"{_selectedWeight:0} kg", 56, Accent(), true));
-        panel.Children.Add(Centered("La préparation démarre avec cette ration.", 16, Muted(), false));
+
+        // --- Ordre de remplissage (modifiable avant le lancement) ---
+        if (resetOrder || _fillOrder.Count == 0)
+            _fillOrder = _selectedRecipe.Ingredients.Where(i => i.Percentage > 0).Select(i => i.Name).ToList();
+        panel.Children.Add(Centered("ORDRE DE REMPLISSAGE", 14, Accent(), true));
+        panel.Children.Add(Centered("Réorganisez le chemin avec ↑ ↓ si besoin.", 13, Muted(), false));
+        var orderList = new StackPanel { Spacing = 14, HorizontalAlignment = HorizontalAlignment.Stretch };
+        panel.Children.Add(orderList);
+
+        Button SmallArrow(string glyph) => new()
+        {
+            Content = glyph,
+            Width = 76,
+            Height = 64,
+            FontSize = 30,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Background = ColorBrush(0x37, 0x41, 0x51),
+            Foreground = White(),
+            BorderBrush = Line(),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+        };
+
+        void RenderOrder()
+        {
+            orderList.Children.Clear();
+            for (var i = 0; i < _fillOrder.Count; i++)
+            {
+                var index = i;
+                var rowGrid = new Grid { ColumnSpacing = 10 };
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition());
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var badge = new Border
+                {
+                    Width = 40,
+                    Height = 40,
+                    CornerRadius = new CornerRadius(20),
+                    Background = IconBg(),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Child = Centered((index + 1).ToString(), 18, Accent(), true),
+                };
+                rowGrid.Children.Add(badge);
+
+                var label = new TextBlock
+                {
+                    Text = DisplayIngredientName(_fillOrder[index]),
+                    Foreground = White(),
+                    FontSize = 24,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                Grid.SetColumn(label, 1);
+                rowGrid.Children.Add(label);
+
+                var arrows = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, VerticalAlignment = VerticalAlignment.Center };
+                var up = SmallArrow("↑");
+                up.IsEnabled = index > 0;
+                up.Click += (_, _) => { (_fillOrder[index], _fillOrder[index - 1]) = (_fillOrder[index - 1], _fillOrder[index]); RenderOrder(); };
+                var down = SmallArrow("↓");
+                down.IsEnabled = index < _fillOrder.Count - 1;
+                down.Click += (_, _) => { (_fillOrder[index], _fillOrder[index + 1]) = (_fillOrder[index + 1], _fillOrder[index]); RenderOrder(); };
+                arrows.Children.Add(up);
+                arrows.Children.Add(down);
+                Grid.SetColumn(arrows, 2);
+                rowGrid.Children.Add(arrows);
+
+                orderList.Children.Add(new Border
+                {
+                    Background = ColorBrush(0x0A, 0xFF, 0xFF, 0xFF),
+                    BorderBrush = Line(),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(16, 12, 16, 12),
+                    Child = rowGrid,
+                });
+            }
+        }
+
+        RenderOrder();
 
         var row = new Grid { ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         row.ColumnDefinitions.Add(new ColumnDefinition());
         row.ColumnDefinitions.Add(new ColumnDefinition());
         var back = ActionButton("Modifier", Gray());
         back.Click += (_, _) => ShowWeightSelection();
-        var confirm = ActionButton("Lancer", BlueDeep());
-        confirm.Click += async (_, _) =>
+        var next = ActionButton("Continuer", BlueDeep());
+        next.Click += (_, _) => ShowLaunchConfirm();
+        Grid.SetColumn(next, 1);
+        row.Children.Add(back);
+        row.Children.Add(next);
+        panel.Children.Add(row);
+
+        var root = Screen();
+        root.Children.Add(TwoPane(WithHeading("Ordre de remplissage", "Définissez le chemin, puis continuez.", RecipePanel(_selectedRecipe)), panel));
+        root.Children.Add(TopCircleButton("←", "Accueil", HorizontalAlignment.Left, () => ShowHome()));
+        SetRoot(root);
+    }
+
+    // ------------------------------------------------------------ Confirmation finale
+
+    private void ShowLaunchConfirm()
+    {
+        if (_selectedRecipe is null) return;
+        var panel = CardPanel();
+        panel.Children.Add(EmojiBadge("✅", IconBg()));
+        panel.Children.Add(Centered("QUANTITÉ CHOISIE", 14, Accent(), true));
+        panel.Children.Add(Centered($"{_selectedWeight:0} kg", 56, Accent(), true));
+
+        panel.Children.Add(Centered("ORDRE DE REMPLISSAGE", 14, Accent(), true));
+        var summary = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
+        for (var i = 0; i < _fillOrder.Count; i++)
+        {
+            summary.Children.Add(Centered($"{i + 1}.  {DisplayIngredientName(_fillOrder[i])}", 18, White(), false));
+        }
+        panel.Children.Add(summary);
+
+        var row = new Grid { ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        var back = ActionButton("Retour", Gray());
+        back.Click += (_, _) => ShowConfirmation(false);
+        var launch = ActionButton("Lancer", BlueDeep());
+        launch.Click += async (_, _) =>
         {
             try
             {
-                await _api.StartMixAsync(_selectedRecipe, _selectedWeight);
+                await _api.StartMixAsync(_selectedRecipe, _selectedWeight, _fillOrder);
                 ShowMix();
             }
             catch (Exception ex)
@@ -372,9 +492,9 @@ public sealed partial class MainWindow : Window
                 ShowError("Impossible de lancer la ration", ex.Message);
             }
         };
-        Grid.SetColumn(confirm, 1);
+        Grid.SetColumn(launch, 1);
         row.Children.Add(back);
-        row.Children.Add(confirm);
+        row.Children.Add(launch);
         panel.Children.Add(row);
 
         var root = Screen();
@@ -388,6 +508,7 @@ public sealed partial class MainWindow : Window
     private void ShowMix()
     {
         StopTimer();
+        _mixTareBase = null;
         var root = Screen();
         var layout = new Grid { Padding = new Thickness(40, 28, 40, 28), RowSpacing = 16 };
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -414,19 +535,19 @@ public sealed partial class MainWindow : Window
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
         Grid.SetRow(content, 1);
 
-        _focusCard = new StackPanel { Spacing = 14, VerticalAlignment = VerticalAlignment.Center };
+        _focusCard = new StackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         var focus = new Border
         {
             Background = Surface(),
             BorderBrush = Line(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(44, 40, 44, 40),
-            Child = _focusCard
+            Padding = new Thickness(40, 24, 40, 24),
+            Child = _focusCard,
         };
         content.Children.Add(focus);
 
-        _progressCard = new StackPanel { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
+        _progressCard = new StackPanel { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         var progress = new Border
         {
             Background = Surface(),
@@ -440,18 +561,29 @@ public sealed partial class MainWindow : Window
         content.Children.Add(progress);
         layout.Children.Add(content);
 
+        _pauseButton = new Button
+        {
+            Content = "⏸️ Pause",
+            Height = 64,
+            MinWidth = 240,
+            FontSize = 20,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Background = ColorBrush(0xB4, 0x53, 0x09),
+            Foreground = White(),
+            CornerRadius = new CornerRadius(8),
+        };
+        _pauseButton.Click += async (_, _) => await TogglePauseAsync();
+
         var stop = new Button
         {
             Content = "⛔ Arrêter",
             Height = 64,
+            MinWidth = 240,
             FontSize = 20,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            MaxWidth = 560,
-            HorizontalAlignment = HorizontalAlignment.Center,
             Background = ColorBrush(0xB9, 0x1C, 0x1C),
             Foreground = White(),
             CornerRadius = new CornerRadius(8),
-            Margin = new Thickness(0, 8, 0, 0)
         };
         stop.Click += async (_, _) =>
         {
@@ -465,10 +597,18 @@ public sealed partial class MainWindow : Window
             }
             await LoadHomeAsync();
         };
-        var stopHost = new Grid();
-        stopHost.Children.Add(stop);
-        Grid.SetRow(stopHost, 2);
-        layout.Children.Add(stopHost);
+
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        footer.Children.Add(_pauseButton);
+        footer.Children.Add(stop);
+        Grid.SetRow(footer, 2);
+        layout.Children.Add(footer);
 
         root.Children.Add(layout);
         SetRoot(root);
@@ -494,23 +634,33 @@ public sealed partial class MainWindow : Window
             _selectedWeight = mix.TotalWeight;
             var weight = await _api.GetWeightAsync();
             var current = weight.Value;
+            _lastMixWeight = current;
             var total = mix.TotalWeight;
             var overall = total <= 0 ? 0 : Math.Min(100, current / total * 100);
             var autoStep = BuildStep(mix.Recipe, total, current);
-            if (allowAutoStep && autoStep is not null) _currentStepIndex = autoStep.Index;
+            _currentStepIndex = Math.Min(_currentStepIndex, Math.Max(mix.Recipe.Ingredients.Count - 1, 0));
+            if (allowAutoStep && autoStep is not null)
+                _currentStepIndex = Math.Max(_currentStepIndex, autoStep.Index);
             var step = BuildStepFromIndex(mix.Recipe, total, current, _currentStepIndex) ?? autoStep;
 
             if (_connectionWarning is not null)
                 _connectionWarning.Visibility = mix.Hardware.RpiConnected ? Visibility.Collapsed : Visibility.Visible;
 
-            UpdateFocusCard(mix.Recipe, step);
-            UpdateProgressCard(overall, current, total);
-
-            if (overall >= 100)
+            _paused = mix.Paused;
+            if (_pauseButton is not null)
             {
-                await _api.CompleteMixAsync();
+                _pauseButton.Content = _paused ? "▶️ Reprendre" : "⏸️ Pause";
+                _pauseButton.Background = _paused ? ColorBrush(0x04, 0x78, 0x57) : ColorBrush(0xB4, 0x53, 0x09);
+            }
+
+            UpdateFocusCard(mix.Recipe, step);
+            UpdateProgressCard(overall, current, total, step is not null && IsManualIngredient(step.Ingredient.Name));
+
+            // Remplissage terminé → écran de vidage (pas pendant une pause).
+            if (overall >= 100 && !_paused)
+            {
                 StopTimer();
-                ShowCompletion();
+                ShowEmptying();
             }
         }
         catch
@@ -527,89 +677,168 @@ public sealed partial class MainWindow : Window
     {
         var card = _focusCard;
         if (card is null || step is null) return;
-        var totalSteps = recipe.Ingredients.Count;
         card.Children.Clear();
 
         card.Children.Add(StepIndicator(recipe, step.Index));
-        card.Children.Add(new Border { Height = 24 });
+        card.Children.Add(new Border { Height = 12 });
 
-        card.Children.Add(Centered($"Ingrédient {step.Index + 1} sur {totalSteps}", 15, Accent(), true));
-        card.Children.Add(Centered(DisplayIngredientName(step.Ingredient.Name), 56, White(), true));
-        card.Children.Add(Centered($"Objectif: {step.Target:0.0} kg", 20, Muted(), false));
+        card.Children.Add(Centered(DisplayIngredientName(step.Ingredient.Name), 40, White(), true));
+        card.Children.Add(new Border { Height = 4 });
+        card.Children.Add(Centered("OBJECTIF", 18, Accent(), true));
+        card.Children.Add(Centered($"{step.Target:0.0} kg", 84, White(), true));
 
-        card.Children.Add(new Border { Height = 36 });
+        card.Children.Add(new Border { Height = 16 });
         card.Children.Add(Centered($"{step.Progress:0}% de cet ingrédient", 16, Soft(), true));
         card.Children.Add(Bar(step.Progress, Amber()));
     }
 
-    private void UpdateProgressCard(double percent, double current, double total)
+    private static bool IsManualIngredient(string name) =>
+        string.Equals(name, "Lin", StringComparison.OrdinalIgnoreCase)
+        || DisplayIngredientName(name).Equals("Lin", StringComparison.OrdinalIgnoreCase);
+
+    private void ToggleMixTare()
+    {
+        _mixTareBase = _mixTareBase is null ? _lastMixWeight : (double?)null;
+    }
+
+    private void UpdateProgressCard(double percent, double current, double total, bool manual)
     {
         var panel = _progressCard;
         if (panel is null) return;
         panel.Children.Clear();
         panel.Children.Add(Centered("POIDS ACTUEL", 14, Accent(), true));
-        panel.Children.Add(Centered($"{current:0.0}", 78, Accent(), true));
-        panel.Children.Add(Centered("kg", 20, Muted(), false));
-        panel.Children.Add(new Border { Height = 8 });
+        panel.Children.Add(Centered($"{current:0.0}", 62, Accent(), true));
+        panel.Children.Add(Centered("kg", 18, Muted(), false));
+        panel.Children.Add(new Border { Height = 4 });
         panel.Children.Add(Bar(percent, Green()));
-        panel.Children.Add(Centered($"{percent:0}%", 32, Green(), true));
+        panel.Children.Add(Centered($"{percent:0}%", 28, Green(), true));
         panel.Children.Add(Centered($"{current:0.0} / {total:0} kg", 16, Muted(), false));
+
+        // Lin = versé à la main → tare manuelle "depuis ici", déclenchée par l'opérateur.
+        if (manual)
+        {
+            panel.Children.Add(new Border { Height = 12 });
+            var tareToggle = new Button
+            {
+                Content = _mixTareBase is null ? "⚖️ Faire la tare" : "↩️ Retirer la tare",
+                Height = 58,
+                FontSize = 20,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Background = _mixTareBase is null ? ColorBrush(0xB4, 0x53, 0x09) : Gray(),
+                Foreground = White(),
+                CornerRadius = new CornerRadius(8),
+            };
+            tareToggle.Click += (_, _) => ToggleMixTare();
+            panel.Children.Add(tareToggle);
+
+            if (_mixTareBase.HasValue)
+            {
+                var since = Math.Max(0, _lastMixWeight - _mixTareBase.Value);
+                panel.Children.Add(new Border { Height = 8 });
+                panel.Children.Add(Centered($"Depuis la tare : {since:0.0} kg", 26, ColorBrush(0x67, 0xE8, 0xF9), true));
+            }
+        }
     }
 
-    // -------------------------------------------------------------- Termine
+    private async Task TogglePauseAsync()
+    {
+        try
+        {
+            if (_paused) await _api.ResumeMixAsync();
+            else await _api.PauseMixAsync();
+        }
+        catch
+        {
+            // ignored
+        }
+        await RefreshMixAsync();
+    }
 
-    private void ShowCompletion()
+    // -------------------------------------------------------------- Vidage
+
+    private void ShowEmptying()
     {
         StopTimer();
         var root = Screen();
-        var panel = new StackPanel { Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        panel.Children.Add(EmojiBadge("✅", GreenBadgeBg()));
-        panel.Children.Add(Centered("Ration terminée", 36, White(), true));
-        panel.Children.Add(Centered("La préparation est enregistrée.", 18, Muted(), false));
-        panel.Children.Add(Centered(_selectedRecipe?.Name ?? "Ration", 28, Soft(), true));
-        panel.Children.Add(Centered($"{_selectedWeight:0} kg", 52, Accent(), true));
+        var layout = new Grid { Padding = new Thickness(40, 28, 40, 28), RowSpacing = 16 };
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition());
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var tareStatus = Centered("Pesez le contenant : faites la tare ou retirez-la.", 14, Muted(), false);
-        panel.Children.Add(TareButtons(tareStatus));
-        panel.Children.Add(tareStatus);
+        var header = new StackPanel { Spacing = 2 };
+        header.Children.Add(new TextBlock { Text = "\U0001F33E FarineAPP", Foreground = Yellow(), FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+        header.Children.Add(new TextBlock { Text = "Vidage", Foreground = White(), FontSize = 34, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+        header.Children.Add(new TextBlock { Text = "Videz le mélangeur, puis terminez.", Foreground = Muted(), FontSize = 15 });
+        layout.Children.Add(header);
 
-        var home = ActionButton("Nouvelle ration", BlueDeep());
-        home.Click += (_, _) => ShowHome();
-        panel.Children.Add(home);
-        root.Children.Add(panel);
+        var center = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _emptyWeight = new TextBlock { Text = "0.0", Foreground = Accent(), FontSize = 180, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+        center.Children.Add(_emptyWeight);
+        center.Children.Add(new TextBlock
+        {
+            Text = "kg",
+            Foreground = Muted(),
+            FontSize = 52,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 28),
+        });
+        Grid.SetRow(center, 1);
+        layout.Children.Add(center);
+
+        var finish = new Button
+        {
+            Content = "✅ Terminer",
+            Height = 64,
+            MaxWidth = 560,
+            FontSize = 20,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = ColorBrush(0x04, 0x78, 0x57),
+            Foreground = White(),
+            CornerRadius = new CornerRadius(8),
+        };
+        finish.Click += async (_, _) =>
+        {
+            try { await _api.CompleteMixAsync(); } catch { /* ignored */ }
+            StopTimer();
+            await LoadHomeAsync();
+        };
+        var host = new Grid();
+        host.Children.Add(finish);
+        Grid.SetRow(host, 2);
+        layout.Children.Add(host);
+
+        root.Children.Add(layout);
         SetRoot(root);
+        _ = RefreshEmptyingAsync();
+        StartTimer(() => RefreshEmptyingAsync());
     }
 
-    private FrameworkElement TareButtons(TextBlock status)
+    private async Task RefreshEmptyingAsync()
     {
-        var row = new Grid { ColumnSpacing = 12, MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Stretch };
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-
-        var tare = ActionButton("⚖️ Faire la tare", ColorBrush(0xB4, 0x53, 0x09));
-        tare.Click += async (_, _) =>
+        if (_refreshing) return;
+        _refreshing = true;
+        try
         {
-            try { await _api.TareAsync(); SetStatus(status, "Balance remise à zéro.", Green()); }
-            catch (Exception ex) { SetStatus(status, "Échec : " + ex.Message, ColorBrush(0xF8, 0x71, 0x71)); }
-        };
-
-        var untare = ActionButton("↩️ Retirer la tare", Gray());
-        Grid.SetColumn(untare, 1);
-        untare.Click += async (_, _) =>
+            var weight = await _api.GetWeightAsync();
+            if (_emptyWeight is not null) _emptyWeight.Text = weight.Value.ToString("0.0");
+        }
+        catch
         {
-            try { await _api.UntareAsync(); SetStatus(status, "Tare retirée.", Green()); }
-            catch (Exception ex) { SetStatus(status, "Échec : " + ex.Message, ColorBrush(0xF8, 0x71, 0x71)); }
-        };
-
-        row.Children.Add(tare);
-        row.Children.Add(untare);
-        return row;
-    }
-
-    private static void SetStatus(TextBlock target, string text, Brush color)
-    {
-        target.Text = text;
-        target.Foreground = color;
+            // garder le dernier poids affiché
+        }
+        finally
+        {
+            _refreshing = false;
+        }
     }
 
     // -------------------------------------------------------------- Mode manuel
@@ -1003,18 +1232,22 @@ public sealed partial class MainWindow : Window
             BorderBrush = Line(),
             BorderThickness = new Thickness(1)
         };
-        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+        var head = new Grid { ColumnSpacing = 16 };
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
         head.Children.Add(new Border
         {
             Width = 72,
             Height = 72,
             CornerRadius = new CornerRadius(8),
             Background = IconBg(),
+            VerticalAlignment = VerticalAlignment.Top,
             Child = new TextBlock { Text = RecipeIcon(recipe, 0), FontSize = 34, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
         });
         var titles = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(new TextBlock { Text = recipe.Name, Foreground = White(), FontSize = 30, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+        titles.Children.Add(new TextBlock { Text = recipe.Name, Foreground = White(), FontSize = 30, FontWeight = Microsoft.UI.Text.FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
         titles.Children.Add(new TextBlock { Text = IngredientText(recipe, "  ·  "), Foreground = Muted(), FontSize = 16, TextWrapping = TextWrapping.Wrap });
+        Grid.SetColumn(titles, 1);
         head.Children.Add(titles);
         panel.Children.Add(head);
         return panel;
@@ -1132,6 +1365,7 @@ public sealed partial class MainWindow : Window
         FontWeight = bold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal,
         TextAlignment = TextAlignment.Center,
         HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
         TextWrapping = TextWrapping.Wrap
     };
 
@@ -1303,11 +1537,13 @@ internal sealed class ApiClient(string baseUrl)
     public async Task<StatusPayload> GetStatusAsync() =>
         await _http.GetFromJsonAsync<StatusPayload>("/api/status", _json) ?? new();
 
-    public async Task StartMixAsync(Recipe recipe, double totalWeight) =>
-        await PostAsync("/api/mix/start", new { recipeName = recipe.Name, totalWeight });
+    public async Task StartMixAsync(Recipe recipe, double totalWeight, IEnumerable<string>? order = null) =>
+        await PostAsync("/api/mix/start", new { recipeName = recipe.Name, totalWeight, order });
 
     public async Task StopMixAsync() => await PostAsync("/api/mix/stop", new { });
     public async Task CompleteMixAsync() => await PostAsync("/api/mix/complete", new { });
+    public async Task PauseMixAsync() => await PostAsync("/api/mix/pause", new { });
+    public async Task ResumeMixAsync() => await PostAsync("/api/mix/resume", new { });
     public async Task TareAsync() => await PostAsync("/api/tare", new { });
     public async Task UntareAsync() => await PostAsync("/api/tare/reset", new { });
     public async Task SetMotorAsync(string motor, string action) => await PostAsync($"/api/motors/{motor}/{action}", new { });
@@ -1342,6 +1578,7 @@ internal sealed class MotorsPayload
 internal sealed class MixStatus
 {
     public bool InProgress { get; set; }
+    public bool Paused { get; set; }
     public double TotalWeight { get; set; }
     public string? RecipeID { get; set; }
     public Recipe? Recipe { get; set; }

@@ -51,6 +51,7 @@ lock = threading.Lock()
 DEFAULT_STATE = {
     "mix": {
         "inProgress": False,
+        "paused": False,
         "recipeID": None,
         "recipe": None,
         "totalWeight": 0.0,
@@ -273,6 +274,16 @@ def get_weight():
             "source": "last-known-weight",
             "error": str(exc),
         }
+
+    # En simulation, on coupe le remplissage dès que la cible est atteinte
+    # (sinon le poids dépasserait l'objectif et continuerait pendant le vidage).
+    mix = state["mix"]
+    if mix.get("inProgress") and not mix.get("paused"):
+        target = float(mix.get("totalWeight") or 0)
+        value = float(state["lastWeight"].get("value") or 0)
+        if target > 0 and value >= target:
+            set_rpi_simulation_filling(False)
+
     write_json(STATE_FILE, state)
     return payload
 
@@ -420,6 +431,45 @@ def update_logs(recipe, target_weight, final_weight, completed):
     })
     write_json(LOGS_FILE, logs)
     return logs
+
+
+def apply_order(recipe, order):
+    # Réordonne les ingrédients d'une recette selon `order` (liste de noms).
+    # Le chemin de remplissage suit l'ordre de la liste `ingredients`.
+    if not order or not isinstance(order, list):
+        return recipe
+    ingredients = recipe.get("ingredients", [])
+    by_name = {ingredient.get("name"): ingredient for ingredient in ingredients}
+    ordered = [by_name[name] for name in order if name in by_name]
+    for ingredient in ingredients:                       # garde ceux non listés
+        if ingredient.get("name") not in order:
+            ordered.append(ingredient)
+    recipe = dict(recipe)
+    recipe["ingredients"] = ordered
+    return recipe
+
+
+def pause_mix(paused):
+    # Met en pause / reprend la ration en cours. En pause, on coupe les moteurs
+    # (et le remplissage simulé). La reprise ne rallume pas les moteurs : c'est
+    # la logique matérielle / l'opérateur qui relance le remplissage.
+    mix = state["mix"]
+    if not mix.get("inProgress"):
+        return {"ok": False, "error": "No mix in progress"}
+
+    mix["paused"] = bool(paused)
+    if paused:
+        for motor in list(state["motors"].keys()):
+            try:
+                shelly_switch(motor, False)
+            except Exception as exc:
+                mark_shelly(False, str(exc))
+        set_rpi_simulation_filling(False)
+    else:
+        set_rpi_simulation_filling(True)   # reprise : le poids remonte à nouveau
+
+    write_json(STATE_FILE, state)
+    return {"ok": True, "paused": mix["paused"], "mix": mix}
 
 
 def stop_mix(completed=False):
@@ -619,14 +669,19 @@ class WinAppServerHandler(BaseHTTPRequestHandler):
                 if total_weight <= 0:
                     send_json(self, 400, {"error": "totalWeight must be greater than 0"})
                     return
+
+                recipe = apply_order(recipe, body.get("order"))   # ordre de remplissage choisi
+
                 try:
                     rpi_request("POST", "/api/simulation/reset", {})
                     mark_rpi(True, None)
                 except Exception as exc:
                     mark_rpi(False, str(exc))
+                set_rpi_simulation_filling(True)   # la simulation fait monter le poids
                 session_id = now_iso()
                 state["mix"] = {
                     "inProgress": True,
+                    "paused": False,
                     "recipeID": recipe["name"],
                     "recipe": recipe,
                     "totalWeight": total_weight,
@@ -645,6 +700,14 @@ class WinAppServerHandler(BaseHTTPRequestHandler):
 
             if path == "/api/mix/complete" and method == "POST":
                 send_json(self, 200, stop_mix(completed=True))
+                return
+
+            if path == "/api/mix/pause" and method == "POST":
+                send_json(self, 200, pause_mix(True))
+                return
+
+            if path == "/api/mix/resume" and method == "POST":
+                send_json(self, 200, pause_mix(False))
                 return
 
             # --- Moteurs : les deux d'un coup ---

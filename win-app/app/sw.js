@@ -1,4 +1,4 @@
-const CACHE_NAME = "farineapp-v6";
+const CACHE_NAME = "farineapp-v9";
 const ASSETS = [
   "/",
   "/index.html",

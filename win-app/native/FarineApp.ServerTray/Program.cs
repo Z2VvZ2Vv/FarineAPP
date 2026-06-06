@@ -1,9 +1,9 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Windows.Forms;
 
 namespace FarineApp.ServerTray;
@@ -23,7 +23,7 @@ internal sealed class TrayAppContext : ApplicationContext
     private readonly NotifyIcon _notifyIcon;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(1.5) };
-    private readonly string _repoRoot;
+    private readonly string _appRoot;
     private readonly Icon _appIcon = LoadAppIcon();
     private ToolStripMenuItem? _serverToggleItem;
     private Process? _rpiProcess;
@@ -33,16 +33,15 @@ internal sealed class TrayAppContext : ApplicationContext
 
     public TrayAppContext()
     {
-        _repoRoot = FindRepoRoot();
+        _appRoot = FindAppRoot();
         _notifyIcon = new NotifyIcon
         {
             Icon = _appIcon,
-            Text = "FarineAPP - démarrage...",
+            Text = "FarineAPP - demarrage...",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
 
-        // Sécurité: si le tray se ferme (normalement ou non), on coupe les serveurs.
         AppDomain.CurrentDomain.ProcessExit += (_, _) => StopServers();
         Application.ApplicationExit += (_, _) => StopServers();
 
@@ -60,9 +59,9 @@ internal sealed class TrayAppContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add("Ouvrir app native", null, (_, _) => OpenNativeApp());
         menu.Items.Add("Ouvrir admin web", null, (_, _) => OpenUrl("http://127.0.0.1:8080/"));
-        menu.Items.Add("Paramètres", null, (_, _) => OpenSettings());
+        menu.Items.Add("Parametres", null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
-        _serverToggleItem = new ToolStripMenuItem("Arrêter les serveurs", null, (_, _) => ToggleServers());
+        _serverToggleItem = new ToolStripMenuItem("Arreter les serveurs", null, (_, _) => ToggleServers());
         menu.Items.Add(_serverToggleItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Statut", null, async (_, _) => await ShowStatusAsync());
@@ -75,14 +74,9 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private void ToggleServers()
     {
-        if (ServersRunning())
-        {
-            StopServers();
-        }
-        else
-        {
-            StartServers();
-        }
+        if (ServersRunning()) StopServers();
+        else StartServers();
+
         UpdateToggleLabel();
         _ = RefreshStatusAsync();
     }
@@ -90,10 +84,10 @@ internal sealed class TrayAppContext : ApplicationContext
     private void UpdateToggleLabel()
     {
         if (_serverToggleItem is null) return;
-        _serverToggleItem.Text = ServersRunning() ? "Arrêter les serveurs" : "Démarrer les serveurs";
+        _serverToggleItem.Text = ServersRunning() ? "Arreter les serveurs" : "Demarrer les serveurs";
     }
 
-    private static string FindRepoRoot()
+    private static string FindAppRoot()
     {
         var dir = AppContext.BaseDirectory;
         while (!string.IsNullOrWhiteSpace(dir))
@@ -110,27 +104,45 @@ internal sealed class TrayAppContext : ApplicationContext
         }
 
         var current = Directory.GetCurrentDirectory();
-        if (Directory.Exists(Path.Combine(current, "rpi-serial-server")))
+        if (Directory.Exists(Path.Combine(current, "rpi-serial-server")) &&
+            Directory.Exists(Path.Combine(current, "win-app")))
         {
             return current;
         }
 
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
     }
 
     private void StartServers()
     {
-        Directory.CreateDirectory(Path.Combine(_repoRoot, "logs", "native"));
-        StartRpi();
-        StartWinServer();
+        Directory.CreateDirectory(Path.Combine(_appRoot, "logs", "native"));
+        try
+        {
+            StartRpi();
+            StartWinServer();
+        }
+        catch (Win32Exception ex)
+        {
+            AppendLog(Path.Combine(_appRoot, "logs", "native", "tray.log"), ex.Message);
+            MessageBox.Show(
+                "Python est introuvable. Lance Install-Prereqs.ps1 dans le dossier release, puis relance FarineAPP.",
+                "FarineAPP",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            AppendLog(Path.Combine(_appRoot, "logs", "native", "tray.log"), ex.ToString());
+            MessageBox.Show(ex.Message, "FarineAPP", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void StartRpi()
     {
         if (_rpiProcess is { HasExited: false }) return;
         _rpiProcess = StartPython(
-            Path.Combine(_repoRoot, "rpi-serial-server"),
-            Path.Combine(_repoRoot, "rpi-serial-server", "server.py"),
+            Path.Combine(_appRoot, "rpi-serial-server"),
+            Path.Combine(_appRoot, "rpi-serial-server", "server.py"),
             "rpi");
     }
 
@@ -138,14 +150,17 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         if (_winServerProcess is { HasExited: false }) return;
         _winServerProcess = StartPython(
-            Path.Combine(_repoRoot, "win-app", "server"),
-            Path.Combine(_repoRoot, "win-app", "server", "server.py"),
+            Path.Combine(_appRoot, "win-app", "server"),
+            Path.Combine(_appRoot, "win-app", "server", "server.py"),
             "win-server");
     }
 
     private Process StartPython(string workingDirectory, string scriptPath, string logName)
     {
-        var logPath = Path.Combine(_repoRoot, "logs", "native", $"{logName}.log");
+        if (!Directory.Exists(workingDirectory)) throw new DirectoryNotFoundException(workingDirectory);
+        if (!File.Exists(scriptPath)) throw new FileNotFoundException(scriptPath);
+
+        var logPath = Path.Combine(_appRoot, "logs", "native", $"{logName}.log");
         var psi = new ProcessStartInfo
         {
             FileName = "python",
@@ -255,15 +270,17 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         var candidates = new[]
         {
-            Path.Combine(_repoRoot, "win-app", "native", "FarineApp.WinUI", "bin", "x64", "Debug", "net8.0-windows10.0.19041.0", "FarineApp.WinUI.exe"),
-            Path.Combine(_repoRoot, "win-app", "native", "FarineApp.WinUI", "bin", "x64", "Release", "net8.0-windows10.0.19041.0", "FarineApp.WinUI.exe")
+            Path.Combine(_appRoot, "native", "FarineApp.WinUI", "FarineApp.WinUI.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "FarineApp.WinUI", "FarineApp.WinUI.exe"),
+            Path.Combine(_appRoot, "win-app", "native", "FarineApp.WinUI", "bin", "x64", "Release", "net8.0-windows10.0.19041.0", "FarineApp.WinUI.exe"),
+            Path.Combine(_appRoot, "win-app", "native", "FarineApp.WinUI", "bin", "x64", "Debug", "net8.0-windows10.0.19041.0", "FarineApp.WinUI.exe")
         };
 
-        var exe = candidates.FirstOrDefault(File.Exists);
+        var exe = candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
         if (exe is null)
         {
             MessageBox.Show(
-                "App native introuvable. Lance d'abord .\\win-app\\scripts\\dev\\build-native.ps1",
+                "App native introuvable. Rebuild la release avec win-app\\scripts\\prod\\package-windows.ps1",
                 "FarineAPP",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);

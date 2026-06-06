@@ -12,6 +12,8 @@ const appState = {
   editingRecipeName: null,
   motors: { corn: false, alfalfa: false },
   tared: false,
+  paused: false,
+  fillOrder: [],
 };
 
 const weightOptions = [200, 400, 600, 800];
@@ -263,9 +265,13 @@ function renderWeightSelection() {
 
 function renderConfirmation() {
   const recipe = appState.selectedRecipe;
+  appState.fillOrder = (recipe.ingredients || [])
+    .filter((ingredient) => Number(ingredient.percentage) > 0)
+    .map((ingredient) => ingredient.name);
+
   app.innerHTML = `
     <main class="screen page-screen">
-      ${pageTop("Tout est prêt ?", "Vérifiez une dernière fois avant de lancer.", {
+      ${pageTop("Tout est prêt ?", "Vérifiez et ajustez l'ordre avant de lancer.", {
         backAction: "home",
       })}
       <section class="flow-layout compact-flow">
@@ -274,7 +280,11 @@ function renderConfirmation() {
           <div class="confirm-icon" aria-hidden="true">✅</div>
           <p class="eyebrow">Quantité choisie</p>
           <strong class="big-number">${escapeHtml(appState.selectedWeight)} kg</strong>
-          <p class="friendly-copy">La préparation démarre avec cette ration.</p>
+          <div class="order-panel">
+            <p class="eyebrow">Ordre de remplissage</p>
+            <p class="order-hint">Réorganisez le chemin avec ↑ ↓ si besoin.</p>
+            <div class="order-list" id="order-list"></div>
+          </div>
           <div class="button-row">
             <button class="button secondary" type="button" id="back-weight">Modifier</button>
             <button class="button primary" type="button" id="start-mix">Lancer</button>
@@ -283,6 +293,32 @@ function renderConfirmation() {
       </section>
     </main>
   `;
+
+  function renderOrder() {
+    const list = app.querySelector("#order-list");
+    list.innerHTML = appState.fillOrder.map((name, index) => `
+      <div class="order-row">
+        <span class="order-step">${index + 1}</span>
+        <span class="order-label">${escapeHtml(displayIngredientName(name))}</span>
+        <div class="order-arrows">
+          <button type="button" class="order-btn" data-up="${escapeHtml(name)}" ${index === 0 ? "disabled" : ""} aria-label="Monter ${escapeHtml(displayIngredientName(name))}">↑</button>
+          <button type="button" class="order-btn" data-down="${escapeHtml(name)}" ${index === appState.fillOrder.length - 1 ? "disabled" : ""} aria-label="Descendre ${escapeHtml(displayIngredientName(name))}">↓</button>
+        </div>
+      </div>
+    `).join("");
+    list.querySelectorAll("[data-up]").forEach((button) => button.addEventListener("click", () => moveOrder(button.dataset.up, -1)));
+    list.querySelectorAll("[data-down]").forEach((button) => button.addEventListener("click", () => moveOrder(button.dataset.down, 1)));
+  }
+
+  function moveOrder(name, direction) {
+    const from = appState.fillOrder.indexOf(name);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= appState.fillOrder.length) return;
+    [appState.fillOrder[from], appState.fillOrder[to]] = [appState.fillOrder[to], appState.fillOrder[from]];
+    renderOrder();
+  }
+
+  renderOrder();
   app.querySelector("#back-weight").addEventListener("click", renderWeightSelection);
   app.querySelector("#start-mix").addEventListener("click", startMix);
   bindActions();
@@ -295,6 +331,7 @@ async function startMix() {
       body: JSON.stringify({
         recipe: appState.selectedRecipe,
         totalWeight: appState.selectedWeight,
+        order: appState.fillOrder,
       }),
     });
     renderMix();
@@ -348,14 +385,10 @@ function renderMix() {
       </header>
       <section class="mix-grid">
         <article class="focus-card">
-          <div class="step-navigation">
-            <button class="round-icon" type="button" id="prev-step" aria-label="Ingrédient précédent">←</button>
-            <div>
-              <p class="eyebrow" id="step-number">Étape</p>
-              <h2 id="step-name">...</h2>
-              <p id="step-target">...</p>
-            </div>
-            <button class="round-icon" type="button" id="next-step" aria-label="Ingrédient suivant">→</button>
+          <div class="step-head">
+            <p class="eyebrow" id="step-number">Étape</p>
+            <h2 id="step-name">...</h2>
+            <p id="step-target">...</p>
           </div>
           <div class="progress-label">
             <span id="step-progress-label">0% de cet ingrédient</span>
@@ -376,21 +409,14 @@ function renderMix() {
         </article>
       </section>
       <footer class="mix-footer">
-        <button class="button danger mix-stop" type="button" id="stop-button">⛔ Arrêter</button>
+        <button class="button warn mix-action" type="button" id="pause-button">⏸️ Pause</button>
+        <button class="button danger mix-action" type="button" id="stop-button">⛔ Arrêter</button>
       </footer>
     </main>
   `;
 
   app.querySelector("#stop-button").addEventListener("click", stopMix);
-  app.querySelector("#prev-step").addEventListener("click", () => {
-    appState.currentStepIndex = Math.max(0, appState.currentStepIndex - 1);
-    refreshMix(false);
-  });
-  app.querySelector("#next-step").addEventListener("click", () => {
-    const count = appState.selectedRecipe?.ingredients?.length || 1;
-    appState.currentStepIndex = Math.min(count - 1, appState.currentStepIndex + 1);
-    refreshMix(false);
-  });
+  app.querySelector("#pause-button").addEventListener("click", togglePause);
 
   refreshMix();
   appState.mixTimer = window.setInterval(refreshMix, 1000);
@@ -411,8 +437,19 @@ async function refreshMix(allowAutoStep = true) {
     const totalWeight = Number(mix.totalWeight || 0);
     const overall = totalWeight > 0 ? Math.min(100, (currentWeight / totalWeight) * 100) : 0;
     const autoStep = getStep(mix.recipe, totalWeight, currentWeight);
-    if (allowAutoStep && autoStep) appState.currentStepIndex = autoStep.index;
+    const lastStepIndex = Math.max((mix.recipe.ingredients || []).length - 1, 0);
+    appState.currentStepIndex = Math.min(appState.currentStepIndex, lastStepIndex);
+    if (allowAutoStep && autoStep) {
+      appState.currentStepIndex = Math.max(appState.currentStepIndex, autoStep.index);
+    }
     const step = buildStepFromIndex(mix.recipe, totalWeight, currentWeight, appState.currentStepIndex) || autoStep;
+
+    appState.paused = Boolean(mix.paused);
+    const pauseButton = app.querySelector("#pause-button");
+    if (pauseButton) {
+      pauseButton.textContent = appState.paused ? "▶️ Reprendre" : "⏸️ Pause";
+      pauseButton.className = `button mix-action ${appState.paused ? "good" : "warn"}`;
+    }
 
     app.querySelector("#connection-warning").hidden = Boolean(mix.hardware?.rpiConnected);
     app.querySelector("#mix-weight").textContent = currentWeight.toFixed(1);
@@ -429,11 +466,58 @@ async function refreshMix(allowAutoStep = true) {
       app.querySelector("#step-progress").style.width = `${step.currentProgress}%`;
     }
 
-    if (overall >= 100) {
-      await completeMix();
+    // Remplissage terminé → écran de vidage (pas pendant une pause).
+    if (overall >= 100 && !appState.paused) {
+      renderEmptying();
     }
   } catch (error) {
     showToast(error.message, "error");
+  }
+}
+
+async function togglePause() {
+  try {
+    await request(appState.paused ? "/api/mix/resume" : "/api/mix/pause", { method: "POST", body: "{}" });
+    showToast(appState.paused ? "Ration reprise." : "Ration en pause.", "info");
+    await refreshMix(false);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function renderEmptying() {
+  stopTimers();
+  app.innerHTML = `
+    <main class="screen mix-screen" aria-label="Vidage">
+      <header class="mix-top">
+        <div>
+          <div class="app-name">🌾 FarineAPP</div>
+          <h1>Vidage</h1>
+          <p>Videz le mélangeur, puis terminez.</p>
+        </div>
+      </header>
+      <section class="empty-screen">
+        <div class="empty-weight">
+          <strong id="empty-weight">0.0</strong>
+          <span>kg</span>
+        </div>
+      </section>
+      <footer class="mix-footer">
+        <button class="button good mix-action wide" type="button" id="finish-empty">✅ Terminer</button>
+      </footer>
+    </main>
+  `;
+  app.querySelector("#finish-empty").addEventListener("click", completeMix);
+  refreshEmptying();
+  appState.mixTimer = window.setInterval(refreshEmptying, 1000);
+}
+
+async function refreshEmptying() {
+  try {
+    const weight = await request("/api/weight");
+    app.querySelector("#empty-weight").textContent = Number(weight.value || 0).toFixed(1);
+  } catch (error) {
+    // garder le dernier poids affiché
   }
 }
 
@@ -480,32 +564,10 @@ async function completeMix() {
   try {
     await request("/api/mix/complete", { method: "POST", body: "{}" });
     showToast("Ration terminée.", "success");
-    renderCompletion();
+    renderHome();
   } catch (error) {
     showToast(error.message, "error");
   }
-}
-
-function renderCompletion() {
-  stopTimers();
-  app.innerHTML = `
-    <main class="screen page-screen">
-      ${pageTop("Ration terminée", "La préparation est enregistrée.", { backAction: "home" })}
-      <section class="finish-panel">
-        <div class="confirm-icon success" aria-hidden="true">✅</div>
-        <h2>${escapeHtml(appState.selectedRecipe?.name || "Ration")}</h2>
-        <strong class="big-number">${escapeHtml(appState.selectedWeight || 0)} kg</strong>
-        <div class="tare-actions">
-          <button class="button warn" type="button" id="finish-tare">⚖️ Faire la tare</button>
-          <button class="button secondary" type="button" id="finish-untare">↩️ Retirer la tare</button>
-        </div>
-        <button class="button primary" type="button" data-action="home">Nouvelle ration</button>
-      </section>
-    </main>
-  `;
-  app.querySelector("#finish-tare").addEventListener("click", tareScale);
-  app.querySelector("#finish-untare").addEventListener("click", untareScale);
-  bindActions();
 }
 
 async function renderManual() {
@@ -638,20 +700,6 @@ function adminTab(label, action, active, icon) {
   `;
 }
 
-function ingredientInputs(recipe = null) {
-  const values = ingredientNames.map((name) => {
-    const found = recipe?.ingredients?.find((ingredient) => ingredient.name === name);
-    return { name, percentage: Number(found?.percentage || 0) };
-  });
-  return values.map((ingredient) => `
-    <label class="ingredient-input">
-      <span>${escapeHtml(displayIngredientName(ingredient.name))}</span>
-      <input data-ingredient="${escapeHtml(ingredient.name)}" type="number" min="0" max="100" step="1" value="${ingredient.percentage}" inputmode="numeric">
-      <small>%</small>
-    </label>
-  `).join("");
-}
-
 async function renderAdminRations() {
   await loadRecipes();
   const editing = appState.editingRecipeName
@@ -672,7 +720,8 @@ async function renderAdminRations() {
           <span>Nom de la ration</span>
           <input id="recipe-name" autocomplete="off" required value="${escapeHtml(editing?.name || "")}" placeholder="Ex. Ration matin">
         </label>
-        <div class="ingredient-list">${ingredientInputs(editing)}</div>
+        <p class="field-hint">Ordre de remplissage (le « chemin ») — utilisez ↑ ↓ pour le modifier.</p>
+        <div class="ingredient-list" id="ingredient-list"></div>
         <div class="form-total" id="recipe-total">Total: 0%</div>
         <div class="button-row">
           <button class="button primary" type="submit">${editing ? "Enregistrer" : "Ajouter"}</button>
@@ -712,7 +761,69 @@ async function renderAdminRations() {
     totalEl.className = `form-total ${total === 100 ? "ok" : "bad"}`;
   }
 
-  content.querySelectorAll("[data-ingredient]").forEach((input) => input.addEventListener("input", updateTotal));
+  // --- Ordre de remplissage (modifiable) ---
+  const order = (editing?.ingredients?.length
+    ? editing.ingredients.map((ingredient) => ingredient.name)
+    : [...ingredientNames]
+  ).slice();
+  ingredientNames.forEach((name) => {
+    if (!order.includes(name)) order.push(name);
+  });
+
+  const values = {};
+  order.forEach((name) => { values[name] = 0; });
+  if (editing) {
+    editing.ingredients.forEach((ingredient) => {
+      values[ingredient.name] = Number(ingredient.percentage) || 0;
+    });
+  }
+
+  const listEl = content.querySelector("#ingredient-list");
+
+  function captureValues() {
+    listEl.querySelectorAll("[data-ingredient]").forEach((input) => {
+      values[input.dataset.ingredient] = Number(input.value || 0);
+    });
+  }
+
+  function moveIngredient(name, direction) {
+    captureValues();
+    const from = order.indexOf(name);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= order.length) return;
+    [order[from], order[to]] = [order[to], order[from]];
+    renderIngredientRows();
+    updateTotal();
+  }
+
+  function renderIngredientRows() {
+    listEl.innerHTML = order.map((name, index) => `
+      <div class="ingredient-input">
+        <div class="ingredient-order">
+          <button type="button" class="order-btn" data-move-up="${escapeHtml(name)}" ${index === 0 ? "disabled" : ""} aria-label="Monter ${escapeHtml(displayIngredientName(name))}">↑</button>
+          <span class="order-index">${index + 1}</span>
+          <button type="button" class="order-btn" data-move-down="${escapeHtml(name)}" ${index === order.length - 1 ? "disabled" : ""} aria-label="Descendre ${escapeHtml(displayIngredientName(name))}">↓</button>
+        </div>
+        <span class="ingredient-name">${escapeHtml(displayIngredientName(name))}</span>
+        <input data-ingredient="${escapeHtml(name)}" type="number" min="0" max="100" step="1" value="${values[name]}" inputmode="numeric">
+        <small>%</small>
+      </div>
+    `).join("");
+    listEl.querySelectorAll("[data-ingredient]").forEach((input) => {
+      input.addEventListener("input", () => {
+        values[input.dataset.ingredient] = Number(input.value || 0);
+        updateTotal();
+      });
+    });
+    listEl.querySelectorAll("[data-move-up]").forEach((button) => {
+      button.addEventListener("click", () => moveIngredient(button.dataset.moveUp, -1));
+    });
+    listEl.querySelectorAll("[data-move-down]").forEach((button) => {
+      button.addEventListener("click", () => moveIngredient(button.dataset.moveDown, 1));
+    });
+  }
+
+  renderIngredientRows();
   updateTotal();
 
   content.querySelector("#recipe-form").addEventListener("submit", async (event) => {
